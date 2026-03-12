@@ -37,9 +37,9 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["paragraph_id", "issue_type", "problem"],
+            "required": ["cluster_id", "issue_type", "problem"],
             "properties": {
-              "paragraph_id": {"type": "string"},
+              "cluster_id": {"type": "string"},
               "issue_type": {"type": "string"},
               "problem": {"type": "string"}
             },
@@ -61,6 +61,7 @@
       "items": {
         "type": "object",
         "required": [
+          "cluster_id",
           "paragraph_id",
           "problem",
           "why_it_matters",
@@ -78,6 +79,9 @@
           "significance_risk"
         ],
         "properties": {
+          "cluster_id": {
+            "type": "string"
+          },
           "paragraph_id": {
             "type": "string"
           },
@@ -133,7 +137,7 @@
           },
           "claim_scope_risk": {
             "type": "string",
-            "enum": ["overclaim", "underspecified", "supported"]
+            "enum": ["overclaim", "underspecified", "supported", "clustered_issue"]
           },
           "narrative_link_issue": {
             "type": "string"

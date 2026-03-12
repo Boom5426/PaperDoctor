@@ -1,39 +1,33 @@
-"""Build a logic map from role, claim, and evidence annotations."""
+"""Build a compact issue-focused logic map from role, claim, and evidence annotations."""
 
 from __future__ import annotations
 
-def _detect_issue_type(
-    role: str,
-    has_claim: bool,
-    has_evidence: bool,
-    claim_scope_risk: str,
-    narrative_link_issue: str,
-    significance_risk: str,
-) -> str:
-    if claim_scope_risk == "overclaim":
-        return "scope"
-    if claim_scope_risk == "underspecified" and role in {"Contribution", "Background", "Field Context"}:
-        return "contribution"
-    if role == "Contribution" and not has_claim:
-        return "contribution"
-    if role == "Contribution" and not has_evidence:
-        return "evidence"
-    if role == "Result Interpretation" and not has_evidence:
-        return "validation"
-    if role == "Gap Identification" and not has_claim:
-        return "gap"
-    if narrative_link_issue != "clear":
-        return "narrative"
-    if significance_risk != "clear":
-        return "significance"
-    return "structure"
+import re
+
+
+REAL_ISSUE_TYPES = {
+    "evidence",
+    "scope",
+    "gap",
+    "contribution",
+    "validation",
+    "narrative",
+}
+
+
+def _normalize_text(text: str | None) -> str:
+    if not text:
+        return ""
+    lowered = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+    return " ".join(lowered.split()[:10])
 
 
 def _detect_claim_scope_risk(role: str, claim_text: str | None, has_evidence: bool) -> str:
     if not claim_text:
-        return "underspecified"
+        return "supported"
     lower_claim = claim_text.lower()
-    if any(marker in lower_claim for marker in ("all", "always", "universally", "solves", "proves")) and not has_evidence:
+    broad_markers = ("all", "always", "universally", "solves", "proves", "dramatically")
+    if any(marker in lower_claim for marker in broad_markers) and not has_evidence:
         return "overclaim"
     if role in {"Contribution", "Result Interpretation"} and not has_evidence:
         return "underspecified"
@@ -43,33 +37,10 @@ def _detect_claim_scope_risk(role: str, claim_text: str | None, has_evidence: bo
 def _detect_narrative_link_issue(previous_role: str | None, role: str, has_claim: bool) -> str:
     if role == "Contribution" and previous_role not in {"Gap Identification", "Field Context"}:
         return "missing_gap_to_contribution_bridge"
-    if role == "Result Interpretation" and previous_role not in {"Contribution", "Background"}:
+    if role == "Result Interpretation" and previous_role not in {"Contribution", "Method", "Background"}:
         return "weak_result_bridge"
     if role == "Discussion" and not has_claim:
         return "weak_implication_bridge"
-    return "clear"
-
-
-def _detect_significance_risk(role: str, text: str, has_claim: bool, has_evidence: bool) -> str:
-    if role != "Discussion":
-        return "not_applicable"
-    lower_text = text.lower()
-    significance_markers = (
-        "impact",
-        "implication",
-        "broader",
-        "enable",
-        "utility",
-        "field",
-        "community",
-        "application",
-    )
-    if not has_claim:
-        return "missing_significance_claim"
-    if not any(marker in lower_text for marker in significance_markers):
-        return "weak_significance_framing"
-    if not has_evidence:
-        return "significance_not_grounded"
     return "clear"
 
 
@@ -79,51 +50,111 @@ def _dimension_flags(
     has_evidence: bool,
     claim_scope_risk: str,
     narrative_link_issue: str,
-    significance_risk: str,
 ) -> dict:
     return {
         "gap_clarity": role == "Gap Identification" and has_claim,
         "contribution_sharpness": role == "Contribution" and has_claim,
         "claim_evidence_alignment": not has_claim or has_evidence,
-        "claim_scope_control": claim_scope_risk == "supported",
+        "claim_scope_control": claim_scope_risk != "overclaim",
         "validation_rigor": role != "Result Interpretation" or has_evidence,
         "narrative_coherence": narrative_link_issue == "clear",
-        "significance_framing": significance_risk in {"clear", "not_applicable"},
+        "significance_framing": True,
     }
 
 
-def _detect_vulnerability(
+def _issue_from_paragraph(
+    *,
+    paragraph_id: str,
+    section: str,
     role: str,
-    has_claim: bool,
-    claim_text: str | None,
-    has_evidence: bool,
-    claim_scope_risk: str,
-    narrative_link_issue: str,
-    significance_risk: str,
-) -> tuple[str, int]:
-    if claim_scope_risk == "overclaim":
-        return ("Claim scope appears broader than the support shown in the local paragraph.", 1)
-    if role == "Contribution" and not has_claim:
-        return ("Contribution paragraph does not state a clear claim.", 1)
-    if role == "Contribution" and not has_evidence:
-        return ("Contribution claim lacks explicit evidence anchor.", 1)
-    if role == "Result Interpretation" and not has_evidence:
-        return ("Results paragraph does not reference figures, tables, citations, or concrete result statements.", 1)
-    if role == "Gap Identification" and not has_claim:
-        return ("Gap paragraph does not clearly state the missing capability or unresolved problem.", 2)
-    if narrative_link_issue != "clear":
-        return ("Narrative progression into this paragraph is weak and needs a clearer bridge from the previous step.", 2)
-    if significance_risk == "missing_significance_claim":
-        return ("Discussion does not state the broader significance of the work clearly enough.", 2)
-    if significance_risk in {"weak_significance_framing", "significance_not_grounded"}:
-        return ("Discussion states limited implication and does not yet frame why the result matters at high-impact level.", 2)
-    if claim_scope_risk == "underspecified":
-        return ("Claim scope is underspecified relative to the level of paper ambition.", 2)
-    if role in {"Background", "Field Context"} and has_claim and not has_evidence:
-        return ("Context paragraph introduces an unsupported claim.", 3)
-    if has_claim and claim_text and len(claim_text.split()) < 6:
-        return ("Claim is too vague to guide revision work.", 3)
-    return ("No major issue detected.", 4)
+    claim: dict,
+    evidence: dict,
+    source_text: str,
+    previous_role: str | None,
+) -> dict | None:
+    has_claim = claim["has_claim"]
+    has_evidence = evidence["has_evidence"]
+    claim_text = claim["claim_text"]
+    claim_scope_risk = _detect_claim_scope_risk(role, claim_text, has_evidence)
+    narrative_link_issue = _detect_narrative_link_issue(previous_role, role, has_claim)
+
+    issue_type = None
+    problem = None
+    priority = 3
+    lower_section = section.lower()
+
+    if role == "Contribution" and (not has_claim or not claim_text):
+        issue_type = "contribution"
+        problem = "The core contribution is not stated clearly enough."
+        priority = 1
+    elif role == "Contribution" and has_claim and not has_evidence:
+        issue_type = "evidence"
+        problem = "A core contribution claim is not anchored to evidence."
+        priority = 1
+    elif (
+        role == "Result Interpretation"
+        and has_claim
+        and not has_evidence
+        and ("result" in lower_section or "experiment" in lower_section)
+    ):
+        issue_type = "validation"
+        problem = "A result claim is presented without strong local validation anchors."
+        priority = 1
+    elif (
+        claim_scope_risk == "overclaim"
+        and role in {"Contribution", "Result Interpretation", "Discussion"}
+        and "data availability" not in lower_section
+    ):
+        issue_type = "scope"
+        problem = "The claim scope appears broader than the evidence shown."
+        priority = 1
+    elif (
+        role == "Gap Identification"
+        and not has_claim
+        and ("intro" in lower_section or "abstract" in lower_section)
+    ):
+        issue_type = "gap"
+        problem = "The paper signals a gap but does not state the unresolved problem clearly."
+        priority = 2
+    elif role == "Contribution" and claim_text and len(claim_text.split()) < 8:
+        issue_type = "contribution"
+        problem = "The contribution is stated too vaguely to anchor the paper-level argument."
+        priority = 2
+    elif (
+        narrative_link_issue != "clear"
+        and role in {"Contribution", "Result Interpretation", "Discussion"}
+        and ("intro" in lower_section or "discussion" in lower_section)
+    ):
+        issue_type = "narrative"
+        problem = "The narrative transition into this paragraph is weak."
+        priority = 2
+
+    if issue_type not in REAL_ISSUE_TYPES:
+        return None
+
+    return {
+        "issue_id": f"issue_{paragraph_id}",
+        "paragraph_id": paragraph_id,
+        "section": section,
+        "role": role,
+        "claim": claim,
+        "evidence": evidence,
+        "issue_type": issue_type,
+        "nature_quality_dimensions": _dimension_flags(
+            role=role,
+            has_claim=has_claim,
+            has_evidence=has_evidence,
+            claim_scope_risk=claim_scope_risk,
+            narrative_link_issue=narrative_link_issue,
+        ),
+        "claim_scope_risk": claim_scope_risk,
+        "narrative_link_issue": narrative_link_issue,
+        "significance_risk": "not_applicable",
+        "logical_vulnerability": problem,
+        "priority": priority,
+        "source_text": source_text,
+        "theme_key": _normalize_text(claim_text or source_text),
+    }
 
 
 def build_logic_map(
@@ -138,79 +169,41 @@ def build_logic_map(
     claim_by_paragraph = {item["paragraph_id"]: item for item in claims["items"]}
     evidence_by_paragraph = {item["paragraph_id"]: item for item in evidence_map["items"]}
     items: list[dict] = []
+    seen_signatures: set[tuple[str, str, str]] = set()
     previous_role: str | None = None
 
     for section in paper_raw["sections"]:
         for paragraph in section["paragraphs"]:
-            role_item = role_by_paragraph[paragraph["id"]]
-            claim_item = claim_by_paragraph[paragraph["id"]]
-            evidence_item = evidence_by_paragraph[paragraph["id"]]
-            claim_scope_risk = _detect_claim_scope_risk(
+            paragraph_id = paragraph["id"]
+            role_item = role_by_paragraph[paragraph_id]
+            claim_item = claim_by_paragraph[paragraph_id]
+            evidence_item = evidence_by_paragraph[paragraph_id]
+            issue = _issue_from_paragraph(
+                paragraph_id=paragraph_id,
+                section=section["title"],
                 role=role_item["role"],
-                claim_text=claim_item["claim_text"],
-                has_evidence=evidence_item["has_evidence"],
-            )
-            significance_risk = _detect_significance_risk(
-                role=role_item["role"],
-                text=paragraph["text"],
-                has_claim=claim_item["has_claim"],
-                has_evidence=evidence_item["has_evidence"],
-            )
-            narrative_link_issue = _detect_narrative_link_issue(
+                claim={
+                    "has_claim": claim_item["has_claim"],
+                    "claim_text": claim_item["claim_text"],
+                    "status": claim_item["status"],
+                },
+                evidence={
+                    "has_evidence": evidence_item["has_evidence"],
+                    "items": evidence_item["evidence_items"],
+                },
+                source_text=paragraph["text"],
                 previous_role=previous_role,
-                role=role_item["role"],
-                has_claim=claim_item["has_claim"],
-            )
-            vulnerability, priority = _detect_vulnerability(
-                role=role_item["role"],
-                has_claim=claim_item["has_claim"],
-                claim_text=claim_item["claim_text"],
-                has_evidence=evidence_item["has_evidence"],
-                claim_scope_risk=claim_scope_risk,
-                narrative_link_issue=narrative_link_issue,
-                significance_risk=significance_risk,
-            )
-            issue_type = _detect_issue_type(
-                role=role_item["role"],
-                has_claim=claim_item["has_claim"],
-                has_evidence=evidence_item["has_evidence"],
-                claim_scope_risk=claim_scope_risk,
-                narrative_link_issue=narrative_link_issue,
-                significance_risk=significance_risk,
-            )
-            items.append(
-                {
-                    "paragraph_id": paragraph["id"],
-                    "section": section["title"],
-                    "role": role_item["role"],
-                    "claim": {
-                        "has_claim": claim_item["has_claim"],
-                        "claim_text": claim_item["claim_text"],
-                        "status": claim_item["status"],
-                    },
-                    "evidence": {
-                        "has_evidence": evidence_item["has_evidence"],
-                        "items": evidence_item["evidence_items"],
-                    },
-                    "issue_type": issue_type,
-                    "nature_quality_dimensions": _dimension_flags(
-                        role=role_item["role"],
-                        has_claim=claim_item["has_claim"],
-                        has_evidence=evidence_item["has_evidence"],
-                        claim_scope_risk=claim_scope_risk,
-                        narrative_link_issue=narrative_link_issue,
-                        significance_risk=significance_risk,
-                    ),
-                    "claim_scope_risk": claim_scope_risk,
-                    "narrative_link_issue": narrative_link_issue,
-                    "significance_risk": significance_risk,
-                    "logical_vulnerability": vulnerability,
-                    "priority": priority,
-                    "source_text": paragraph["text"],
-                }
             )
             previous_role = role_item["role"]
+            if not issue:
+                continue
+            signature = (issue["issue_type"], issue["section"], issue["theme_key"])
+            if signature in seen_signatures:
+                continue
+            seen_signatures.add(signature)
+            items.append(issue)
 
+    items.sort(key=lambda item: (item["priority"], item["section"], item["paragraph_id"]))
     return {
         "document_name": paper_raw["document_name"],
         "rubric_name": nature_quality_rubric["rubric_name"],

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperDoctor Issue Clusters",
+  "type": "object",
+  "required": ["document_name", "item_count", "items"],
+  "properties": {
+    "document_name": { "type": "string" },
+    "item_count": { "type": "integer", "minimum": 0 },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "issue_type",
+          "section",
+          "theme",
+          "priority",
+          "problem",
+          "source_issue_ids",
+          "source_paragraph_ids",
+          "claim_examples",
+          "evidence_summary",
+          "representative_span"
+        ],
+        "properties": {
+          "cluster_id": { "type": "string" },
+          "issue_type": { "type": "string" },
+          "section": { "type": "string" },
+          "theme": { "type": "string" },
+          "priority": { "type": "integer", "minimum": 1, "maximum": 4 },
+          "problem": { "type": "string" },
+          "source_issue_ids": { "type": "array", "items": { "type": "string" } },
+          "source_paragraph_ids": { "type": "array", "items": { "type": "string" } },
+          "claim_examples": { "type": "array", "items": { "type": "string" } },
+          "evidence_summary": { "type": "array", "items": { "type": "string" } },
+          "representative_span": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

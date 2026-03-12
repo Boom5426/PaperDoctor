@@ -81,6 +81,7 @@ After the run, PaperDoctor writes:
 - `outputs/evidence_map.json`
 - `outputs/nature_quality_rubric.json`
 - `outputs/logic_map.json`
+- `outputs/issue_clusters.json`
 - `outputs/storyline.json`
 - `outputs/journal_profile.json`
 - `outputs/revision_report.md`

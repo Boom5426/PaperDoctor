@@ -12,6 +12,7 @@ from jsonschema import validate
 from paperdoctor.llm import load_llm_client
 from skills.claim_extractor import extract_claims
 from skills.evidence_mapper import map_evidence
+from skills.issue_clusterer import build_issue_clusters
 from skills.journal_adapter import get_journal_profile
 from skills.logic_mapper import build_logic_map
 from skills.nature_quality_rubric import get_nature_quality_rubric
@@ -376,6 +377,25 @@ def run_pipeline(
         f"{logic_map_status} | items={logic_map['item_count']} | actionable={actionable_logic_items} | output={logic_map_path.name}",
     )
 
+    logger.stage_start("Clustering issues")
+    issue_clusters, issue_clusters_path, issue_clusters_status = _prepare_artifact(
+        logger,
+        manifest,
+        paper_id=paper_id,
+        source_docx=document_path,
+        doc_hash=doc_hash,
+        name="issue_clusters",
+        scope=scope,
+        extension="json",
+        refresh=refresh,
+        build_fn=lambda: build_issue_clusters(logic_map),
+        validate_schema="issue_clusters_schema.json",
+    )
+    logger.stage_done(
+        "Clustering issues",
+        f"{issue_clusters_status} | clusters={issue_clusters['item_count']} | output={issue_clusters_path.name}",
+    )
+
     logger.stage_start("Building storyline")
     storyline, storyline_path, storyline_status = _prepare_artifact(
         logger,
@@ -387,7 +407,7 @@ def run_pipeline(
         scope=scope,
         extension="json",
         refresh=refresh,
-        build_fn=lambda: build_storyline(scoped_paper_raw, section_roles, claims, logic_map),
+        build_fn=lambda: build_storyline(scoped_paper_raw, section_roles, claims, issue_clusters),
     )
     logger.stage_done(
         "Building storyline",
@@ -425,7 +445,7 @@ def run_pipeline(
         extension="json",
         refresh=refresh,
         build_fn=lambda: build_revision_plan(
-            logic_map,
+            issue_clusters,
             journal_profile,
             nature_quality_rubric,
             storyline,
@@ -455,14 +475,6 @@ def run_pipeline(
         ),
     )
 
-    logger.stage_start("Writing outputs")
-    _save_manifest(manifest)
-    session_manifest_path = MANIFEST_PATH
-    logger.stage_done(
-        "Writing outputs",
-        f"manifest={session_manifest_path.name} | outputs_updated=10",
-    )
-
     artifacts = [
         ("paper_raw", paper_raw_status, paper_raw_path.name),
         ("section_roles", section_roles_status, section_roles_path.name),
@@ -470,11 +482,19 @@ def run_pipeline(
         ("evidence_map", evidence_status, evidence_map_path.name),
         ("nature_quality_rubric", rubric_status, nature_quality_rubric_path.name),
         ("logic_map", logic_map_status, logic_map_path.name),
+        ("issue_clusters", issue_clusters_status, issue_clusters_path.name),
         ("storyline", storyline_status, storyline_path.name),
         ("journal_profile", journal_profile_status, journal_profile_path.name),
         ("revision_plan", revision_plan_status, revision_plan_path.name),
         ("revision_report", revision_report_status, revision_report_path.name),
     ]
+    logger.stage_start("Writing outputs")
+    _save_manifest(manifest)
+    session_manifest_path = MANIFEST_PATH
+    logger.stage_done(
+        "Writing outputs",
+        f"manifest={session_manifest_path.name} | outputs_updated={len(artifacts)}",
+    )
     reused_artifacts = [name for name, status, _ in artifacts if status == "reused"]
     recomputed_artifacts = [name for name, status, _ in artifacts if status == "recomputed"]
     output_files = [filename for _, _, filename in artifacts] + [session_manifest_path.name]
@@ -486,11 +506,13 @@ def run_pipeline(
         "evidence_map_path": str(evidence_map_path),
         "nature_quality_rubric_path": str(nature_quality_rubric_path),
         "logic_map_path": str(logic_map_path),
+        "issue_clusters_path": str(issue_clusters_path),
         "storyline_path": str(storyline_path),
         "journal_profile_path": str(journal_profile_path),
         "revision_report_path": str(revision_report_path),
         "session_manifest_path": str(session_manifest_path),
         "logic_issue_count": len(logic_map["items"]),
+        "issue_cluster_count": len(issue_clusters["items"]),
         "revision_item_count": len(revision_plan["items"]),
         "llm_configured": llm_client.is_configured,
         "scope": scope,

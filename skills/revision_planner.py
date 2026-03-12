@@ -71,8 +71,8 @@ def _build_fix(
     return "Rewrite the paragraph around one clear claim followed by one concrete supporting detail."
 
 
-def _default_why_it_matters(role: str) -> str:
-    return f"The paragraph is labeled as {role}, so unclear logic here weakens the paper's narrative flow."
+def _default_why_it_matters(section: str) -> str:
+    return f"This clustered issue affects the argument quality of the {section} section and weakens the paper-level narrative."
 
 
 def _enrich_revision_item(
@@ -88,15 +88,11 @@ def _enrich_revision_item(
         {
             "target_quality": journal_profile["journal"],
             "issue_type": entry["issue_type"],
-            "role": entry["role"],
-            "problem": entry["logical_vulnerability"],
-            "source_span": entry["source_text"],
-            "claim_text": entry["claim"]["claim_text"],
-            "claim_status": entry["claim"]["status"],
-            "evidence_items": entry["evidence"]["items"],
-            "claim_scope_risk": entry["claim_scope_risk"],
-            "narrative_link_issue": entry["narrative_link_issue"],
-            "significance_risk": entry["significance_risk"],
+            "section": entry["section"],
+            "problem": entry["problem"],
+            "source_span": entry["representative_span"],
+            "claim_examples": entry["claim_examples"],
+            "evidence_summary": entry["evidence_summary"],
             "nature_quality_reason": _nature_quality_reason(
                 entry["issue_type"],
                 journal_profile,
@@ -121,7 +117,7 @@ def _enrich_revision_item(
 
 
 def build_revision_plan(
-    logic_map: dict,
+    issue_clusters: dict,
     journal_profile: dict,
     nature_quality_rubric: dict,
     storyline: dict,
@@ -129,18 +125,16 @@ def build_revision_plan(
 ) -> dict:
     items: list[dict] = []
 
-    for entry in logic_map["items"]:
-        if entry["priority"] >= 4:
-            continue
-        evidence_values = [item["value"] for item in entry["evidence"]["items"]]
+    for entry in issue_clusters["items"]:
+        evidence_values = entry["evidence_summary"]
         fallback_fix = _build_fix(
             entry["issue_type"],
-            entry["role"],
-            entry["logical_vulnerability"],
-            entry["evidence"]["items"],
-            entry["claim_scope_risk"],
-            entry["narrative_link_issue"],
-            entry["significance_risk"],
+            entry["section"],
+            entry["problem"],
+            [],
+            "supported",
+            "clear",
+            "not_applicable",
         )
         enriched = _enrich_revision_item(
             entry,
@@ -150,20 +144,21 @@ def build_revision_plan(
         )
         items.append(
             {
-                "paragraph_id": entry["paragraph_id"],
-                "problem": entry["logical_vulnerability"],
+                "cluster_id": entry["cluster_id"],
+                "paragraph_id": entry["source_paragraph_ids"][0],
+                "problem": entry["problem"],
                 "why_it_matters": (
                     enriched["why_it_matters"]
                     if enriched
-                    else _default_why_it_matters(entry["role"])
+                    else _default_why_it_matters(entry["section"])
                 ),
-                "source_span": entry["source_text"],
+                "source_span": entry["representative_span"],
                 "how_to_fix": enriched["how_to_fix"] if enriched else fallback_fix,
                 "example_rewrite": (
                     enriched["example_rewrite"]
                     if enriched
                     else (
-                        f"{entry['claim']['claim_text'] or 'State the core claim explicitly.'} "
+                        f"{(entry['claim_examples'][0] if entry['claim_examples'] else 'State the core claim explicitly.')} "
                         "This statement should be followed by a concrete evidence anchor or transition sentence."
                     ).strip()
                 ),
@@ -174,18 +169,18 @@ def build_revision_plan(
                     journal_profile,
                     nature_quality_rubric,
                 ),
-                "claim_status": entry["claim"]["status"],
+                "claim_status": "clustered_issue",
                 "evidence_summary": evidence_values,
                 "section": entry["section"],
-                "claim_scope_risk": entry["claim_scope_risk"],
-                "narrative_link_issue": entry["narrative_link_issue"],
-                "significance_risk": entry["significance_risk"],
+                "claim_scope_risk": "clustered_issue",
+                "narrative_link_issue": "clustered_issue",
+                "significance_risk": "clustered_issue",
             }
         )
 
     items.sort(key=lambda item: (item["priority"], item["paragraph_id"]))
     return {
-        "document_name": logic_map["document_name"],
+        "document_name": issue_clusters["document_name"],
         "journal": journal_profile["journal"],
         "rubric_name": nature_quality_rubric["rubric_name"],
         "item_count": len(items),
@@ -255,7 +250,7 @@ def render_revision_report(revision_plan: dict, journal_profile: dict) -> str:
     for index, item in enumerate(revision_plan["items"], start=1):
         lines.extend(
             [
-                f"## Item {index}: {item['paragraph_id']} (Priority {item['priority']})",
+                f"## Item {index}: {item['cluster_id']} (Priority {item['priority']})",
                 "",
                 f"**Problem**: {item['problem']}",
                 "",
@@ -290,7 +285,7 @@ def render_revision_report(revision_plan: dict, journal_profile: dict) -> str:
         lines.append("")
         for item in items:
             lines.append(
-                f"- {item['paragraph_id']}: {item['problem']} [{item['issue_type']}; priority {item['priority']}]"
+                f"- {item['cluster_id']}: {item['problem']} [{item['issue_type']}; priority {item['priority']}]"
             )
         lines.append("")
 
@@ -298,7 +293,7 @@ def render_revision_report(revision_plan: dict, journal_profile: dict) -> str:
     for item in revision_plan["items"]:
         lines.extend(
             [
-                f"- {item['paragraph_id']}: claim status is `{item['claim_status']}`; evidence summary is "
+                f"- {item['cluster_id']}: claim status is `{item['claim_status']}`; evidence summary is "
                 f"{', '.join(item['evidence_summary']) if item['evidence_summary'] else 'None'}; "
                 f"scope risk is `{item['claim_scope_risk']}`; narrative link is `{item['narrative_link_issue']}`; "
                 f"significance risk is `{item['significance_risk']}`.",

@@ -25,16 +25,21 @@ def _extract_gap_text(text: str, claim_text: str | None) -> str:
     return sentences[-1] if sentences else text
 
 
-def _detect_significance_risk(logic_map: dict | None) -> str:
-    if not logic_map:
+def _detect_significance_risk(issue_clusters: dict | None) -> str:
+    if not issue_clusters:
         return "unknown"
-    for item in logic_map["items"]:
-        if item["role"] == "Discussion":
-            return item.get("significance_risk", "unknown")
-    return "missing_discussion_signal"
+    for item in issue_clusters["items"]:
+        if item["issue_type"] == "significance":
+            return "significance_issue_detected"
+    return "clear"
 
 
-def build_storyline(paper_raw: dict, section_roles: dict, claims: dict, logic_map: dict | None = None) -> dict:
+def build_storyline(
+    paper_raw: dict,
+    section_roles: dict,
+    claims: dict,
+    issue_clusters: dict | None = None,
+) -> dict:
     role_by_paragraph = {item["paragraph_id"]: item for item in section_roles["items"]}
     claim_by_paragraph = {item["paragraph_id"]: item for item in claims["items"]}
 
@@ -66,16 +71,15 @@ def build_storyline(paper_raw: dict, section_roles: dict, claims: dict, logic_ma
             if role == "Result Interpretation":
                 result_candidates.append(claim_item["claim_text"] or text)
 
-    logic_items = logic_map["items"] if logic_map else []
+    cluster_items = issue_clusters["items"] if issue_clusters else []
     main_risks = [
         {
-            "paragraph_id": item["paragraph_id"],
+            "cluster_id": item["cluster_id"],
             "issue_type": item["issue_type"],
-            "problem": item["logical_vulnerability"],
+            "problem": item["problem"],
         }
-        for item in logic_items
-        if item["priority"] <= 2
-    ]
+        for item in cluster_items[:5]
+    ][:5]
 
     main_problem = (
         problem_candidates[0]
@@ -94,5 +98,5 @@ def build_storyline(paper_raw: dict, section_roles: dict, claims: dict, logic_ma
         "core_contribution": core_contribution,
         "supporting_results": result_candidates,
         "main_risks": main_risks,
-        "significance_risk": _detect_significance_risk(logic_map),
+        "significance_risk": _detect_significance_risk(issue_clusters),
     }

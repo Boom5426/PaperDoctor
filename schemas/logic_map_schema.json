@@ -19,6 +19,7 @@
       "items": {
         "type": "object",
         "required": [
+          "issue_id",
           "paragraph_id",
           "section",
           "role",
@@ -34,6 +35,9 @@
           "source_text"
         ],
         "properties": {
+          "issue_id": {
+            "type": "string"
+          },
           "paragraph_id": {
             "type": "string"
           },
@@ -141,6 +145,9 @@
             "maximum": 4
           },
           "source_text": {
+            "type": "string"
+          },
+          "theme_key": {
             "type": "string"
           }
         },
