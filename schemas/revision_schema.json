@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperDoctor Revision Plan",
+  "type": "object",
+  "required": ["document_name", "journal", "rubric_name", "storyline", "item_count", "items"],
+  "properties": {
+    "document_name": {
+      "type": "string"
+    },
+    "journal": {
+      "type": "string"
+    },
+    "rubric_name": {
+      "type": "string"
+    },
+    "storyline": {
+      "type": "object",
+      "required": [
+        "document_name",
+        "main_problem",
+        "main_gap",
+        "core_contribution",
+        "supporting_results",
+        "main_risks",
+        "significance_risk"
+      ],
+      "properties": {
+        "document_name": {"type": "string"},
+        "main_problem": {"type": "string"},
+        "main_gap": {"type": "string"},
+        "core_contribution": {"type": "string"},
+        "supporting_results": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "main_risks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["paragraph_id", "issue_type", "problem"],
+            "properties": {
+              "paragraph_id": {"type": "string"},
+              "issue_type": {"type": "string"},
+              "problem": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "significance_risk": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "item_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "paragraph_id",
+          "problem",
+          "why_it_matters",
+          "source_span",
+          "how_to_fix",
+          "example_rewrite",
+          "priority",
+          "issue_type",
+          "journal_rationale",
+          "claim_status",
+          "evidence_summary",
+          "section",
+          "claim_scope_risk",
+          "narrative_link_issue",
+          "significance_risk"
+        ],
+        "properties": {
+          "paragraph_id": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "why_it_matters": {
+            "type": "string"
+          },
+          "source_span": {
+            "type": "string"
+          },
+          "how_to_fix": {
+            "type": "string"
+          },
+          "example_rewrite": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "issue_type": {
+            "type": "string",
+            "enum": [
+              "gap",
+              "contribution",
+              "evidence",
+              "scope",
+              "validation",
+              "narrative",
+              "structure",
+              "readability",
+              "significance",
+              "journal_fit"
+            ]
+          },
+          "journal_rationale": {
+            "type": "string"
+          },
+          "claim_status": {
+            "type": "string"
+          },
+          "evidence_summary": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "section": {
+            "type": "string"
+          },
+          "claim_scope_risk": {
+            "type": "string",
+            "enum": ["overclaim", "underspecified", "supported"]
+          },
+          "narrative_link_issue": {
+            "type": "string"
+          },
+          "significance_risk": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

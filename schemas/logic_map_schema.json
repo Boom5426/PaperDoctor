@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperDoctor Logic Map",
+  "type": "object",
+  "required": ["document_name", "rubric_name", "item_count", "items"],
+  "properties": {
+    "document_name": {
+      "type": "string"
+    },
+    "rubric_name": {
+      "type": "string"
+    },
+    "item_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "paragraph_id",
+          "section",
+          "role",
+          "claim",
+          "evidence",
+          "issue_type",
+          "nature_quality_dimensions",
+          "claim_scope_risk",
+          "narrative_link_issue",
+          "significance_risk",
+          "logical_vulnerability",
+          "priority",
+          "source_text"
+        ],
+        "properties": {
+          "paragraph_id": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "claim": {
+            "type": "object",
+            "required": ["has_claim", "claim_text", "status"],
+            "properties": {
+              "has_claim": {
+                "type": "boolean"
+              },
+              "claim_text": {
+                "type": ["string", "null"]
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "object",
+            "required": ["has_evidence", "items"],
+            "properties": {
+              "has_evidence": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["type", "value"],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "issue_type": {
+            "type": "string",
+            "enum": [
+              "gap",
+              "contribution",
+              "evidence",
+              "scope",
+              "validation",
+              "narrative",
+              "structure",
+              "readability",
+              "significance",
+              "journal_fit"
+            ]
+          },
+          "nature_quality_dimensions": {
+            "type": "object",
+            "required": [
+              "gap_clarity",
+              "contribution_sharpness",
+              "claim_evidence_alignment",
+              "claim_scope_control",
+              "validation_rigor",
+              "narrative_coherence",
+              "significance_framing"
+            ],
+            "properties": {
+              "gap_clarity": {"type": "boolean"},
+              "contribution_sharpness": {"type": "boolean"},
+              "claim_evidence_alignment": {"type": "boolean"},
+              "claim_scope_control": {"type": "boolean"},
+              "validation_rigor": {"type": "boolean"},
+              "narrative_coherence": {"type": "boolean"},
+              "significance_framing": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "claim_scope_risk": {
+            "type": "string",
+            "enum": ["overclaim", "underspecified", "supported"]
+          },
+          "narrative_link_issue": {
+            "type": "string"
+          },
+          "significance_risk": {
+            "type": "string"
+          },
+          "logical_vulnerability": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "source_text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

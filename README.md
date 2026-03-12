@@ -1,101 +1,270 @@
 # PaperDoctor
 
-> 一个用于 **诊断科研论文逻辑问题并生成可执行修改方案的 AI Agent**
+PaperDoctor 是一个面向科研论文的 `paper diagnosis agent`，目标不是直接帮你“润色句子”，而是先把论文的主线逻辑、claim-evidence 关系、storyline 风险和 revision priorities 结构化地拆出来，再输出可执行修改建议。
 
+当前项目的主打场景是：
 
-<p align="center">
-  <img src="PaperDoctor.png" width="800">
-</p>
+- Nature-family / Nature 系列期刊质量提升
+- 投稿前逻辑诊断与修改规划
+- 可运行、可展示、可复现的最小开源工作流
 
-<p align="center">
-<b>像医生一样诊断论文逻辑问题的 AI Agent</b>
-</p>
+PaperDoctor 当前不是一个普通 paper editor。它更像一个投稿前诊断器：
 
-<p align="center">
-发现逻辑漏洞 · 分析 Claim-Evidence 关系 · 生成可执行修改方案
-</p>
+- 先解析论文结构
+- 再识别段落角色、claim、evidence
+- 再抽取整篇论文主线
+- 最后输出 revision report
 
----
+## 为什么需要它
 
-写论文最难的，从来不是语法， 而是 **逻辑**。
+很多论文工具只做润色、改写或摘要，但真正影响高水平投稿结果的，往往是这些问题：
 
-- Introduction 是否真正建立了研究 gap？
-- 每个 Claim 是否有足够证据支撑？
-- Results 是否真的支持核心结论？
-- 论文叙事是否符合目标期刊的逻辑结构？
+- 研究问题讲得不够清楚
+- main gap 没有被明确说出来
+- contribution 不够锋利
+- claim 和 evidence 对不上
+- validation 不够扎实
+- Discussion 没有把 significance 讲出来
 
-很多 AI 写作工具可以 **润色文字**。
+PaperDoctor 的目标，就是把这些问题在真正修改之前先诊断出来。
 
-但很少有工具能 **诊断论文的逻辑问题**。
+## 当前定位
 
-**PaperDoctor 的目标不是“改写论文”，而是像医生一样诊断论文。**
+当前优先场景：
 
----
+- Nature-family paper quality improvement
 
-# 为什么需要 PaperDoctor
+这不代表项目架构只能服务 Nature-family。当前只是先聚焦一个最容易展示价值、最容易形成产品定位的场景。底层 pipeline 仍然可以扩展到其他期刊、其他论文类型或更长文档。
 
-目前大多数 AI 论文修改工具的流程是：论文 → Prompt → 修改建议
+## 核心工作流
 
+当前最小闭环流程如下：
 
-这种方式常常产生：
+`docx -> paper_raw.json -> section_roles.json -> claims.json -> evidence_map.json -> nature_quality_rubric.json -> logic_map.json -> storyline.json -> journal_profile.json -> revision_report.md`
 
-- 泛泛的建议  
-- 不知道具体问题在哪  
-- 建议与论文结构脱节  
-- 甚至产生幻觉式批评  
+对应步骤：
 
-例如：
+1. 输入论文 `.docx`
+2. 文档解析，生成基础结构化内容
+3. 段落角色识别
+4. claim 提取
+5. evidence 映射
+6. 使用 Nature-family 质量 rubric 做逻辑诊断
+7. 提取整篇论文 storyline / core argument
+8. 输出 revision report
 
-> “建议增强逻辑。”
+## 安装方式
 
-这几乎没有帮助。
+### 1. 克隆项目
 
-因为它没有说明：
+```bash
+git clone https://github.com/Boom5426/PaperDoctor.git
+cd PaperDoctor
+```
 
-- **哪一段有问题**
-- **为什么这是问题**
-- **应该怎么修改**
+### 2. 安装依赖
 
----
+```bash
+pip install -r requirements.txt
+```
 
-# PaperDoctor 的思路
+## 配置 API
 
-PaperDoctor 把论文当成一个 **需要诊断的系统**。
+PaperDoctor 提供了统一的 LLM 配置层，兼容 OpenAI 风格接口，并支持当前常见的 OpenAI-compatible API relay。
 
-在提出修改建议之前，它会先进行 **逻辑诊断**。
+当前环境变量：
 
-**整体流程：论文 → 文档解析 → 逻辑诊断 → 修改规划 → Revision Report**
+- `PAPERDOCTOR_API_KEY`
+- `PAPERDOCTOR_BASE_URL`
+- `PAPERDOCTOR_MODEL`
+- `PAPERDOCTOR_MAX_TOKENS`
+- `PAPERDOCTOR_TIMEOUT`
 
+### 1. 复制环境文件
 
-核心思想：
+```bash
+cp .env.example .env
+```
 
-> 在 AI 生成建议之前，先构建 **结构化推理状态**。
+### 2. 填写 `.env`
 
----
+`.env.example` 默认内容已经准备好：
 
-# 核心概念：Logic Map（逻辑地图）
+```env
+PAPERDOCTOR_API_KEY=your_api_key_here
+PAPERDOCTOR_BASE_URL=https://vip.yi-zhan.top/v1
+PAPERDOCTOR_MODEL=gemini-3-flash-preview
+PAPERDOCTOR_MAX_TOKENS=40000
+PAPERDOCTOR_TIMEOUT=600
+```
 
-PaperDoctor 会把论文拆解成 **逻辑单元**。
+注意：
 
-每个段落都会被标注：
+- 不要把真实 `api_key` 写进代码
+- 不要把真实 `api_key` 提交到 Git
+- `.env` 已经被 `.gitignore` 忽略
 
-- 段落角色
-- 作者 Claim
-- 支撑 Evidence
-- 逻辑漏洞
+## 运行 Demo
 
-示例：
+最简单的运行方式：
 
-```json
-{
-  "section": "Introduction",
-  "role": "Gap Identification",
-  "claim": "Existing virtual cell models fail to generalize to organoid data.",
-  "evidence": "None",
-  "logical_vulnerability": "该 Claim 假设 batch effect 是唯一问题，但未讨论 biological drift。"
-}
+```bash
+python run_agent.py examples/sample_paper.docx
+```
 
+也可以显式传入轻量 journal profile：
 
+```bash
+python run_agent.py examples/sample_paper.docx --journal "Nature Methods"
+```
 
+注意：
 
+- 当前 `journal` 参数只是轻量 profile 输入
+- 项目定位仍然是“提升到 Nature-family 质量”
+- 并没有实现复杂子刊打分器或 issue weighting
 
+## 输出说明
+
+运行后，至少会生成以下文件：
+
+- `outputs/paper_raw.json`
+  - 论文原始结构化内容
+  - section / paragraph / references
+
+- `outputs/section_roles.json`
+  - 每个段落的角色判断
+  - 例如 `Background`、`Gap Identification`、`Contribution`
+
+- `outputs/claims.json`
+  - 每个段落是否有明确 claim
+  - claim 文本及状态
+
+- `outputs/evidence_map.json`
+  - 每个段落的 evidence 支撑情况
+  - citation / figure-table / explicit result
+
+- `outputs/nature_quality_rubric.json`
+  - 当前统一的 Nature-family 质量 rubric
+
+- `outputs/logic_map.json`
+  - 逻辑诊断主结果
+  - 包含 issue type、claim scope risk、narrative link issue、significance risk
+
+- `outputs/storyline.json`
+  - 整篇论文的轻量主线 artifact
+  - 包括：
+    - `main_problem`
+    - `main_gap`
+    - `core_contribution`
+    - `supporting_results`
+    - `main_risks`
+    - `significance_risk`
+
+- `outputs/journal_profile.json`
+  - 当前轻量 Nature-family profile
+
+- `outputs/revision_report.md`
+  - 最终给作者看的诊断与修改报告
+
+## 项目结构
+
+```text
+PaperDoctor/
+├── paperdoctor/
+│   ├── llm/
+│   │   ├── __init__.py
+│   │   └── client.py
+│   ├── agent.py
+│   └── pipeline.py
+├── skills/
+│   ├── parse_docx.py
+│   ├── section_role_annotator.py
+│   ├── claim_extractor.py
+│   ├── evidence_mapper.py
+│   ├── nature_quality_rubric.py
+│   ├── storyline_builder.py
+│   ├── logic_mapper.py
+│   ├── journal_adapter.py
+│   └── revision_planner.py
+├── schemas/
+├── examples/
+├── outputs/
+├── docs/
+│   ├── architecture.md
+│   └── quickstart.md
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── run_agent.py
+```
+
+关键说明：
+
+- `paperdoctor/llm/client.py`
+  - 统一读取 API 配置
+  - 封装 OpenAI 风格调用
+
+- `paperdoctor/pipeline.py`
+  - 串联整个最小工作流
+
+- `skills/`
+  - 论文诊断的核心模块
+
+- `examples/sample_paper.docx`
+  - 可直接运行的 demo 输入
+
+- `docs/quickstart.md`
+  - 更偏操作手册的快速上手说明
+
+## 当前 LLM 接入状态
+
+当前项目已经接入统一 LLM 配置层，但核心 pipeline 仍然以稳定的启发式实现为主。
+
+这意味着：
+
+- 你现在就可以 clone 后直接跑通 demo
+- API 配置已经统一，不会散落在各个 skill 里
+- 后续把某个 skill 升级成 LLM 驱动时，可以直接复用 `paperdoctor.llm.client`
+
+## 当前限制
+
+当前版本明确不做：
+
+- PDF / LaTeX 支持
+- Web UI
+- rebuttal / cover letter generation
+- 多 agent orchestration
+- 长期记忆
+
+当前已知限制：
+
+- 目前只支持 `.docx`
+- 当前以 Nature-family 质量诊断为主
+- 当前 LLM client 已接入，但主要分析逻辑仍以 heuristic-first 为主
+
+## 快速排查
+
+常见问题请直接看：
+
+- `docs/quickstart.md`
+
+其中包含：
+
+- API key 未配置
+- base_url 无法连接
+- docx 文件不存在
+- outputs 未生成
+
+## 适合如何使用
+
+如果你要用这个项目做 GitHub 展示，建议最少展示这三样：
+
+- `examples/sample_paper.docx`
+- `outputs/storyline.json`
+- `outputs/revision_report.md`
+
+它们最能体现 PaperDoctor 的差异点：
+
+- 不是只做句子润色
+- 而是先诊断整篇论文主线和逻辑质量

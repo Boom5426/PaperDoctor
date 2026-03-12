@@ -1,0 +1,2 @@
+"""PaperDoctor minimal package."""
+
