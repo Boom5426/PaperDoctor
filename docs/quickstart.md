@@ -39,6 +39,21 @@ Optional:
 python run_agent.py examples/sample_paper.docx --journal "Nature Methods"
 ```
 
+Scope-based analysis:
+
+```bash
+python run_agent.py examples/sample_paper.docx --scope full
+python run_agent.py examples/sample_paper.docx --scope intro
+python run_agent.py examples/sample_paper.docx --scope results
+```
+
+Force refresh:
+
+```bash
+python run_agent.py examples/sample_paper.docx --refresh
+python run_agent.py examples/sample_paper.docx --scope intro --refresh
+```
+
 ## 5. Check Outputs
 
 After the run, PaperDoctor writes:
@@ -52,6 +67,14 @@ After the run, PaperDoctor writes:
 - `outputs/storyline.json`
 - `outputs/journal_profile.json`
 - `outputs/revision_report.md`
+- `outputs/session_manifest.json`
+
+PaperDoctor now uses an artifact-first workflow:
+
+- the `.docx` file is parsed once into `paper_raw.json`
+- later runs reuse cached artifacts when the document hash has not changed
+- this is especially useful for long papers because later analysis does not need to reread the whole document every time
+- when `--scope` is used, scope-specific outputs are written with a prefix such as `intro_logic_map.json`
 
 ## 6. Use Your Own Paper
 
@@ -105,3 +128,17 @@ Fix:
 - rerun from the project root
 - check whether the input file exists
 - confirm dependencies were installed with `pip install -r requirements.txt`
+
+### Cache seems stale
+
+Symptom:
+- you want to force a fresh recomputation for the current scope
+
+Fix:
+- rerun with `--refresh`
+
+Example:
+
+```bash
+python run_agent.py examples/sample_paper.docx --scope intro --refresh
+```
