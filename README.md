@@ -226,6 +226,9 @@ PaperDoctor/
 - 你现在就可以 clone 后直接跑通 demo
 - API 配置已经统一，不会散落在各个 skill 里
 - 后续把某个 skill 升级成 LLM 驱动时，可以直接复用 `paperdoctor.llm.client`
+- 当前已真实接入的模块是 `skills/revision_planner.py`
+- 如果 `PAPERDOCTOR_API_KEY` 已配置，revision suggestions 会优先使用 LLM 增强
+- 如果未配置或请求失败，会自动回退到本地 heuristic 版本
 
 ## 当前限制
 

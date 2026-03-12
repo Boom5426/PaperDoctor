@@ -2,6 +2,23 @@
 
 from __future__ import annotations
 
+import json
+
+
+REVISION_ENRICHMENT_SYSTEM_PROMPT = """
+You are helping generate revision advice for an academic paper diagnosis report.
+Return strict JSON with keys:
+- why_it_matters
+- how_to_fix
+- example_rewrite
+
+Requirements:
+- Keep each field concise and actionable.
+- Align with Nature-family quality expectations.
+- Do not invent experiments or results not present in the source span.
+- example_rewrite should be a short improved version of the source idea, not a full paragraph.
+""".strip()
+
 
 def _nature_quality_reason(issue_type: str, journal_profile: dict, nature_quality_rubric: dict) -> str:
     dimensions = nature_quality_rubric["dimensions"]
@@ -54,6 +71,55 @@ def _build_fix(
     return "Rewrite the paragraph around one clear claim followed by one concrete supporting detail."
 
 
+def _default_why_it_matters(role: str) -> str:
+    return f"The paragraph is labeled as {role}, so unclear logic here weakens the paper's narrative flow."
+
+
+def _enrich_revision_item(
+    entry: dict,
+    journal_profile: dict,
+    nature_quality_rubric: dict,
+    llm_client,
+) -> dict | None:
+    if not llm_client or not llm_client.is_configured:
+        return None
+
+    user_prompt = json.dumps(
+        {
+            "target_quality": journal_profile["journal"],
+            "issue_type": entry["issue_type"],
+            "role": entry["role"],
+            "problem": entry["logical_vulnerability"],
+            "source_span": entry["source_text"],
+            "claim_text": entry["claim"]["claim_text"],
+            "claim_status": entry["claim"]["status"],
+            "evidence_items": entry["evidence"]["items"],
+            "claim_scope_risk": entry["claim_scope_risk"],
+            "narrative_link_issue": entry["narrative_link_issue"],
+            "significance_risk": entry["significance_risk"],
+            "nature_quality_reason": _nature_quality_reason(
+                entry["issue_type"],
+                journal_profile,
+                nature_quality_rubric,
+            ),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    try:
+        enriched = llm_client.chat_json(
+            REVISION_ENRICHMENT_SYSTEM_PROMPT,
+            user_prompt,
+        )
+    except Exception:
+        return None
+
+    required_keys = {"why_it_matters", "how_to_fix", "example_rewrite"}
+    if not isinstance(enriched, dict) or not required_keys.issubset(enriched):
+        return None
+    return enriched
+
+
 def build_revision_plan(
     logic_map: dict,
     journal_profile: dict,
@@ -67,7 +133,7 @@ def build_revision_plan(
         if entry["priority"] >= 4:
             continue
         evidence_values = [item["value"] for item in entry["evidence"]["items"]]
-        fix = _build_fix(
+        fallback_fix = _build_fix(
             entry["issue_type"],
             entry["role"],
             entry["logical_vulnerability"],
@@ -76,19 +142,31 @@ def build_revision_plan(
             entry["narrative_link_issue"],
             entry["significance_risk"],
         )
+        enriched = _enrich_revision_item(
+            entry,
+            journal_profile,
+            nature_quality_rubric,
+            llm_client,
+        )
         items.append(
             {
                 "paragraph_id": entry["paragraph_id"],
                 "problem": entry["logical_vulnerability"],
                 "why_it_matters": (
-                    f"The paragraph is labeled as {entry['role']}, so unclear logic here weakens the paper's narrative flow."
+                    enriched["why_it_matters"]
+                    if enriched
+                    else _default_why_it_matters(entry["role"])
                 ),
                 "source_span": entry["source_text"],
-                "how_to_fix": fix,
+                "how_to_fix": enriched["how_to_fix"] if enriched else fallback_fix,
                 "example_rewrite": (
-                    f"{entry['claim']['claim_text'] or 'State the core claim explicitly.'} "
-                    "This statement should be followed by a concrete evidence anchor or transition sentence."
-                ).strip(),
+                    enriched["example_rewrite"]
+                    if enriched
+                    else (
+                        f"{entry['claim']['claim_text'] or 'State the core claim explicitly.'} "
+                        "This statement should be followed by a concrete evidence anchor or transition sentence."
+                    ).strip()
+                ),
                 "priority": entry["priority"],
                 "issue_type": entry["issue_type"],
                 "journal_rationale": _nature_quality_reason(

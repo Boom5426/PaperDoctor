@@ -74,6 +74,7 @@ Fix:
 
 Note:
 - the current pipeline can still run in heuristic mode, but API-backed extensions will not be available
+- the current project already supports LLM-enhanced revision planning when `.env` is configured
 
 ### `base_url` cannot connect
 
@@ -104,4 +105,3 @@ Fix:
 - rerun from the project root
 - check whether the input file exists
 - confirm dependencies were installed with `pip install -r requirements.txt`
-
