@@ -1,6 +1,8 @@
 # PaperDoctor
 
-<img src="PaperDoctor.png" width="500">
+<p align="center">
+  <img src="PaperDoctor.png" width="800">
+</p>
 
 PaperDoctor 是一个面向科研论文的 `paper diagnosis agent`，目标不是直接帮你“润色句子”，而是先把论文的主线逻辑、claim-evidence 关系、storyline 风险和 revision priorities 结构化地拆出来，再输出可执行修改建议。
 
