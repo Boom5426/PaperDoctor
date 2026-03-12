@@ -1,277 +1,73 @@
 # PaperDoctor
 
-**PaperDoctor 是一个用于科研论文审阅与修改的 AI Agent。** 它会先 **诊断论文中的逻辑问题**，再生成 **可执行的修改建议**。
+> 一个用于 **诊断科研论文逻辑问题并生成可执行修改方案的 AI Agent**
 
-就像医生：
+写论文最难的，从来不是语法。而是 **逻辑**。
 
-```
-论文
- ↓
-诊断逻辑问题
- ↓
-开出修改方案
-```
+- Introduction 是否真正建立了研究 gap？
+- 每个 Claim 是否有足够证据支撑？
+- Results 是否真的支持核心结论？
+- 论文叙事是否符合目标期刊的逻辑结构？
+
+很多 AI 写作工具可以 **润色文字**。
+
+但很少有工具能 **诊断论文的逻辑问题**。
+
+**PaperDoctor 的目标不是“改写论文”，而是像医生一样诊断论文。**
 
 ---
 
 # 为什么需要 PaperDoctor
 
-目前大多数 AI 写作工具的流程是：
+目前大多数 AI 论文修改工具的流程是：论文 → Prompt → 修改建议
 
-```
-论文 → Prompt → 修改建议
-```
 
-这通常会产生：
+这种方式常常产生：
 
-* 泛泛建议
-* 无法定位具体问题
-* 缺乏证据链分析
+- 泛泛的建议  
+- 不知道具体问题在哪  
+- 建议与论文结构脱节  
+- 甚至产生幻觉式批评  
 
-PaperDoctor 引入 **诊断层 (Diagnosis Layer)**：
+例如：
 
-```
-论文
- ↓
-结构解析
- ↓
-逻辑诊断
- ↓
-修改规划
- ↓
-Revision Report
-```
+> “建议增强逻辑。”
 
-这样生成的建议：
+这几乎没有帮助。
 
-* 可定位
-* 有证据
-* 可执行
+因为它没有说明：
+
+- **哪一段有问题**
+- **为什么这是问题**
+- **应该怎么修改**
 
 ---
 
-# 核心能力
+# PaperDoctor 的思路
 
-PaperDoctor 的核心是一个 **Agent Pipeline**。
+PaperDoctor 把论文当成一个 **需要诊断的系统**。
 
----
+在提出修改建议之前，它会先进行 **逻辑诊断**。
 
-## 1 文档解析
+**整体流程：论文 → 文档解析 → 逻辑诊断 → 修改规划 → Revision Report**
 
-解析 `.docx` 论文：
 
-* section
-* paragraph
-* figure reference
+核心思想：
 
-输出：
-
-```
-paper_raw.json
-```
+> 在 AI 生成建议之前，先构建 **结构化推理状态**。
 
 ---
 
-## 2 章节角色识别
+# 核心概念：Logic Map（逻辑地图）
 
-识别段落在论文中的角色：
+PaperDoctor 会把论文拆解成 **逻辑单元**。
 
-* Background
-* Gap Identification
-* Contribution
-* Result Interpretation
-* Discussion
+每个段落都会被标注：
 
-避免结构错位。
-
----
-
-## 3 Claim-Evidence Mapping
-
-识别：
-
-```
-Claim → Evidence
-```
-
-检测问题：
-
-* Claim 没有证据
-* Claim 过度
-* Evidence 不匹配
-
----
-
-## 4 逻辑漏洞诊断
-
-PaperDoctor 会检测：
-
-* Claim-Evidence mismatch
-* 叙事链断裂
-* 段落角色错位
-* 期刊适配问题
-
----
-
-## 5 Revision Planner
-
-生成结构化修改建议：
-
-```
-Current Problem
-Why It Matters
-Source Span
-How To Fix
-Example Rewrite
-```
-
----
-
-# 示例
-
-原始段落：
-
-> Organoids have emerged as powerful tools for modeling clinical responses.
-
----
-
-诊断结果：
-
-```
-Role: FIELD_CONTEXT
-Claim: organoids are superior models
-Evidence: none provided
-Logical Issue:
-lack of quantitative justification
-```
-
----
-
-修改建议：
-
-**Problem**
-
-段落声称类器官模型更优，但没有定量证据。
-
-**Fix**
-
-增加文献或数据支持。
-
-**Example Rewrite**
-
-> Organoids have emerged as powerful models for studying clinical responses, offering higher physiological fidelity than traditional cell lines. Recent studies report improved predictive accuracy in drug response modeling.
-
----
-
-# 系统架构
-
-```
-Input Paper (.docx)
-
-        │
-        ▼
-
-Document Parsing
-
-        │
-        ▼
-
-Logic Diagnosis
-(section roles
-claim-evidence)
-
-        │
-        ▼
-
-Revision Planner
-
-        │
-        ▼
-
-Revision Report
-```
-
----
-
-# Demo
-
-运行：
-
-```
-python run_agent.py examples/sample_paper.docx
-```
-
-输出：
-
-```
-logic_map.json
-revision_report.md
-```
-
----
-
-# 项目目标
-
-PaperDoctor 探索一个问题：
-
-**如何让 AI 对长文档进行结构化推理，而不是一次性生成文本。**
-
-核心方法：
-
-> 将文档理解转化为显式中间状态。
-
----
-
-# Roadmap
-
-### v0.1
-
-论文 revision agent
-
-* docx 支持
-* logic diagnosis
-* revision report
-
----
-
-### v0.2
-
-增强能力：
-
-* figure / table evidence mapping
-* citation analysis
-
----
-
-### v0.3
-
-扩展到：
-
-* grant proposal
-* technical report
-* whitepaper
-
----
-
-# 4️⃣ Agent Pipeline（面试官会看的）
-
-你项目真正的技术点是：
-
-```
-paper
- ↓
-preprocessing
- ↓
-logic_map
- ↓
-planner
- ↓
-report
-```
-
-其中：
-
-logic_map 是核心 artifact。
+- 段落角色
+- 作者 Claim
+- 支撑 Evidence
+- 逻辑漏洞
 
 示例：
 
@@ -279,43 +75,12 @@ logic_map 是核心 artifact。
 {
   "section": "Introduction",
   "role": "Gap Identification",
-  "claim": "...",
-  "evidence": "...",
-  "vulnerability": "...",
-  "priority": 1
+  "claim": "Existing virtual cell models fail to generalize to organoid data.",
+  "evidence": "None",
+  "logical_vulnerability": "该 Claim 假设 batch effect 是唯一问题，但未讨论 biological drift。"
 }
-```
 
----
 
-# 5️⃣ 第一个 Demo（非常关键）
 
-建议做一个：
 
-**Before vs After**
-
-比如：
-
-Baseline GPT：
-
-```
-Strengthen the logic of this paragraph.
-```
-
-PaperDoctor：
-
-```
-Problem:
-Claim lacks quantitative evidence.
-
-Fix:
-Add statistics comparing organoids vs cell lines.
-
-Example rewrite:
-...
-```
-
-这种 demo 会让 repo 更容易 star。
-
----
 
