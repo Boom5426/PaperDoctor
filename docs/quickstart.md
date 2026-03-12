@@ -33,6 +33,17 @@ Then edit `.env` and fill in:
 python run_agent.py examples/sample_paper.docx
 ```
 
+You will now see stage-aware runtime logs such as:
+
+- Parsing DOCX
+- Section role annotation
+- Claim extraction
+- Evidence mapping
+- Building logic map
+- Building storyline
+- Generating revision report
+- Writing outputs
+
 Optional:
 
 ```bash
@@ -52,6 +63,12 @@ Force refresh:
 ```bash
 python run_agent.py examples/sample_paper.docx --refresh
 python run_agent.py examples/sample_paper.docx --scope intro --refresh
+```
+
+Verbose mode:
+
+```bash
+python run_agent.py examples/sample_paper.docx --verbose
 ```
 
 ## 5. Check Outputs
@@ -75,6 +92,7 @@ PaperDoctor now uses an artifact-first workflow:
 - later runs reuse cached artifacts when the document hash has not changed
 - this is especially useful for long papers because later analysis does not need to reread the whole document every time
 - when `--scope` is used, scope-specific outputs are written with a prefix such as `intro_logic_map.json`
+- runtime logs will show whether an artifact was `reuse` or `recompute`
 
 ## 6. Use Your Own Paper
 

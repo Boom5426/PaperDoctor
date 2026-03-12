@@ -10,10 +10,12 @@ def run(
     journal_name: str | None = None,
     scope: str = "full",
     refresh: bool = False,
+    verbose: bool = False,
 ) -> dict:
     return run_pipeline(
         Path(document_path),
         journal_name=journal_name,
         scope=scope,
         refresh=refresh,
+        verbose=verbose,
     )

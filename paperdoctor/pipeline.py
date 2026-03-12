@@ -28,6 +28,25 @@ MANIFEST_PATH = OUTPUT_DIR / "session_manifest.json"
 SUPPORTED_SCOPES = {"full", "abstract", "intro", "results"}
 
 
+class PipelineLogger:
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+
+    def info(self, message: str) -> None:
+        print(f"[PaperDoctor] {message}")
+
+    def stage_start(self, name: str) -> None:
+        self.info(f"{name}...")
+
+    def stage_done(self, name: str, summary: str | None = None) -> None:
+        suffix = f" | {summary}" if summary else ""
+        self.info(f"{name} complete{suffix}")
+
+    def detail(self, message: str) -> None:
+        if self.verbose:
+            self.info(message)
+
+
 def _load_schema(name: str) -> dict:
     return json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
 
@@ -116,10 +135,6 @@ def _can_reuse_artifact(manifest: dict, *, name: str, scope: str, path: Path, do
     return artifact.get("doc_hash") == doc_hash
 
 
-def _log(message: str) -> None:
-    print(f"[PaperDoctor] {message}")
-
-
 def _section_matches_scope(title: str, scope: str) -> bool:
     lower_title = title.lower()
     if scope == "full":
@@ -151,6 +166,7 @@ def _filter_paper_raw_by_scope(paper_raw: dict, scope: str) -> dict:
 
 
 def _prepare_artifact(
+    logger: PipelineLogger,
     manifest: dict,
     *,
     paper_id: str,
@@ -163,7 +179,7 @@ def _prepare_artifact(
     build_fn,
     validate_schema: str | None = None,
     extra_manifest: dict | None = None,
-) -> tuple[dict, Path, bool]:
+) -> tuple[dict, Path, str]:
     path = _artifact_path(name, scope, extension)
     if _can_reuse_artifact(
         manifest,
@@ -173,7 +189,7 @@ def _prepare_artifact(
         doc_hash=doc_hash,
         refresh=refresh,
     ):
-        _log(f"reuse {name} ({scope}) -> {path.name}")
+        logger.detail(f"reuse {name} ({scope}) -> {path.name}")
         payload = _load_json(path) if extension == "json" else {"path": str(path)}
         _update_manifest_artifact(
             manifest,
@@ -186,9 +202,9 @@ def _prepare_artifact(
             reused=True,
             extra=extra_manifest,
         )
-        return payload, path, True
+        return payload, path, "reused"
 
-    _log(f"recompute {name} ({scope}) -> {path.name}")
+    logger.detail(f"recompute {name} ({scope}) -> {path.name}")
     payload = build_fn()
     if extension == "json":
         if validate_schema:
@@ -208,7 +224,7 @@ def _prepare_artifact(
         reused=False,
         extra=extra_manifest,
     )
-    return payload, path, False
+    return payload, path, "recomputed"
 
 
 def run_pipeline(
@@ -216,17 +232,26 @@ def run_pipeline(
     journal_name: str | None = None,
     scope: str = "full",
     refresh: bool = False,
+    verbose: bool = False,
 ) -> dict:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     if scope not in SUPPORTED_SCOPES:
         raise ValueError(f"Unsupported scope '{scope}'. Supported scopes: {sorted(SUPPORTED_SCOPES)}")
 
+    logger = PipelineLogger(verbose=verbose)
     llm_client = load_llm_client()
+    logger.stage_start("Loading / reusing cached artifacts")
     manifest = _load_manifest()
     doc_hash = _compute_doc_hash(document_path)
     paper_id = _paper_id(document_path, doc_hash)
+    logger.stage_done(
+        "Loading / reusing cached artifacts",
+        f"paper_id={paper_id} | scope={scope} | refresh={refresh} | llm_configured={llm_client.is_configured}",
+    )
 
-    paper_raw, paper_raw_path, _ = _prepare_artifact(
+    logger.stage_start("Parsing DOCX")
+    paper_raw, paper_raw_path, paper_raw_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -237,10 +262,22 @@ def run_pipeline(
         refresh=refresh,
         build_fn=lambda: parse_docx(document_path),
     )
+    logger.stage_done(
+        "Parsing DOCX",
+        (
+            f"{paper_raw_status} | sections={paper_raw['section_count']} | "
+            f"paragraphs={paper_raw['paragraph_count']} | output={paper_raw_path.name}"
+        ),
+    )
 
     scoped_paper_raw = _filter_paper_raw_by_scope(paper_raw, scope)
+    logger.detail(
+        f"scope filter ({scope}) -> sections={scoped_paper_raw['section_count']} | paragraphs={scoped_paper_raw['paragraph_count']}"
+    )
 
-    section_roles, section_roles_path, _ = _prepare_artifact(
+    logger.stage_start("Section role annotation")
+    section_roles, section_roles_path, section_roles_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -251,8 +288,14 @@ def run_pipeline(
         refresh=refresh,
         build_fn=lambda: annotate_section_roles(scoped_paper_raw, llm_client=llm_client),
     )
+    logger.stage_done(
+        "Section role annotation",
+        f"{section_roles_status} | paragraphs={section_roles['item_count']} | output={section_roles_path.name}",
+    )
 
-    claims, claims_path, _ = _prepare_artifact(
+    logger.stage_start("Claim extraction")
+    claims, claims_path, claims_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -263,8 +306,15 @@ def run_pipeline(
         refresh=refresh,
         build_fn=lambda: extract_claims(scoped_paper_raw, llm_client=llm_client),
     )
+    extracted_claims = sum(1 for item in claims["items"] if item["has_claim"])
+    logger.stage_done(
+        "Claim extraction",
+        f"{claims_status} | extracted_claims={extracted_claims}/{claims['item_count']} | output={claims_path.name}",
+    )
 
-    evidence_map, evidence_map_path, _ = _prepare_artifact(
+    logger.stage_start("Evidence mapping")
+    evidence_map, evidence_map_path, evidence_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -275,8 +325,15 @@ def run_pipeline(
         refresh=refresh,
         build_fn=lambda: map_evidence(scoped_paper_raw, claims, llm_client=llm_client),
     )
+    evidence_supported = sum(1 for item in evidence_map["items"] if item["has_evidence"])
+    logger.stage_done(
+        "Evidence mapping",
+        f"{evidence_status} | evidence_supported={evidence_supported}/{evidence_map['item_count']} | output={evidence_map_path.name}",
+    )
 
-    nature_quality_rubric, nature_quality_rubric_path, _ = _prepare_artifact(
+    logger.stage_start("Loading Nature-quality rubric")
+    nature_quality_rubric, nature_quality_rubric_path, rubric_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -287,8 +344,14 @@ def run_pipeline(
         refresh=False,
         build_fn=get_nature_quality_rubric,
     )
+    logger.stage_done(
+        "Loading Nature-quality rubric",
+        f"{rubric_status} | dimensions={len(nature_quality_rubric['dimensions'])} | output={nature_quality_rubric_path.name}",
+    )
 
-    logic_map, logic_map_path, _ = _prepare_artifact(
+    logger.stage_start("Building logic map")
+    logic_map, logic_map_path, logic_map_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -307,8 +370,15 @@ def run_pipeline(
         ),
         validate_schema="logic_map_schema.json",
     )
+    actionable_logic_items = sum(1 for item in logic_map["items"] if item["priority"] < 4)
+    logger.stage_done(
+        "Building logic map",
+        f"{logic_map_status} | items={logic_map['item_count']} | actionable={actionable_logic_items} | output={logic_map_path.name}",
+    )
 
-    storyline, storyline_path, _ = _prepare_artifact(
+    logger.stage_start("Building storyline")
+    storyline, storyline_path, storyline_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -319,8 +389,14 @@ def run_pipeline(
         refresh=refresh,
         build_fn=lambda: build_storyline(scoped_paper_raw, section_roles, claims, logic_map),
     )
+    logger.stage_done(
+        "Building storyline",
+        f"{storyline_status} | main_risks={len(storyline['main_risks'])} | output={storyline_path.name}",
+    )
 
-    journal_profile, journal_profile_path, _ = _prepare_artifact(
+    logger.stage_start("Loading journal profile")
+    journal_profile, journal_profile_path, journal_profile_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -332,8 +408,14 @@ def run_pipeline(
         build_fn=lambda: get_journal_profile(journal_name),
         extra_manifest={"journal_input": journal_name or "Nature-family"},
     )
+    logger.stage_done(
+        "Loading journal profile",
+        f"{journal_profile_status} | journal={journal_profile['journal']} | output={journal_profile_path.name}",
+    )
 
-    revision_plan, _, _ = _prepare_artifact(
+    logger.stage_start("Generating revision report")
+    revision_plan, revision_plan_path, revision_plan_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -352,7 +434,8 @@ def run_pipeline(
         validate_schema="revision_schema.json",
     )
 
-    revision_report_payload, revision_report_path, _ = _prepare_artifact(
+    revision_report_payload, revision_report_path, revision_report_status = _prepare_artifact(
+        logger,
         manifest,
         paper_id=paper_id,
         source_docx=document_path,
@@ -364,9 +447,37 @@ def run_pipeline(
         build_fn=lambda: render_revision_report(revision_plan, journal_profile),
         extra_manifest={"journal_input": journal_name or "Nature-family"},
     )
+    logger.stage_done(
+        "Generating revision report",
+        (
+            f"plan={revision_plan_status} | report={revision_report_status} | "
+            f"revision_items={revision_plan['item_count']} | output={revision_report_path.name}"
+        ),
+    )
 
+    logger.stage_start("Writing outputs")
     _save_manifest(manifest)
     session_manifest_path = MANIFEST_PATH
+    logger.stage_done(
+        "Writing outputs",
+        f"manifest={session_manifest_path.name} | outputs_updated=10",
+    )
+
+    artifacts = [
+        ("paper_raw", paper_raw_status, paper_raw_path.name),
+        ("section_roles", section_roles_status, section_roles_path.name),
+        ("claims", claims_status, claims_path.name),
+        ("evidence_map", evidence_status, evidence_map_path.name),
+        ("nature_quality_rubric", rubric_status, nature_quality_rubric_path.name),
+        ("logic_map", logic_map_status, logic_map_path.name),
+        ("storyline", storyline_status, storyline_path.name),
+        ("journal_profile", journal_profile_status, journal_profile_path.name),
+        ("revision_plan", revision_plan_status, revision_plan_path.name),
+        ("revision_report", revision_report_status, revision_report_path.name),
+    ]
+    reused_artifacts = [name for name, status, _ in artifacts if status == "reused"]
+    recomputed_artifacts = [name for name, status, _ in artifacts if status == "recomputed"]
+    output_files = [filename for _, _, filename in artifacts] + [session_manifest_path.name]
 
     return {
         "paper_raw_path": str(paper_raw_path),
@@ -385,4 +496,8 @@ def run_pipeline(
         "scope": scope,
         "refresh": refresh,
         "paper_id": paper_id,
+        "verbose": verbose,
+        "reused_artifacts": reused_artifacts,
+        "recomputed_artifacts": recomputed_artifacts,
+        "output_files": output_files,
     }

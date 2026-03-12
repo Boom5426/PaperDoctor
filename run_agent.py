@@ -27,6 +27,11 @@ def main() -> None:
         action="store_true",
         help="Force recomputation instead of reusing cached artifacts.",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show more detailed artifact reuse and scope statistics.",
+    )
     args = parser.parse_args()
 
     result = run(
@@ -34,6 +39,7 @@ def main() -> None:
         journal_name=args.journal,
         scope=args.scope,
         refresh=args.refresh,
+        verbose=args.verbose,
     )
     print("PaperDoctor pipeline completed.")
     print(f"paper_id: {result['paper_id']}")
@@ -52,6 +58,11 @@ def main() -> None:
     print(f"logic issues: {result['logic_issue_count']}")
     print(f"revision items: {result['revision_item_count']}")
     print(f"llm configured: {result['llm_configured']}")
+    print("Summary:")
+    print(f"  reused artifacts: {', '.join(result['reused_artifacts']) if result['reused_artifacts'] else 'None'}")
+    print(f"  recomputed artifacts: {', '.join(result['recomputed_artifacts']) if result['recomputed_artifacts'] else 'None'}")
+    print(f"  outputs written: {', '.join(result['output_files'])}")
+    print(f"  revision report: {result['revision_report_path']}")
 
 
 if __name__ == "__main__":
