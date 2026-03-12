@@ -2,7 +2,22 @@
 
 > 一个用于 **诊断科研论文逻辑问题并生成可执行修改方案的 AI Agent**
 
-写论文最难的，从来不是语法。而是 **逻辑**。
+
+<p align="center">
+  <img src="PaperDoctor.png" width="800">
+</p>
+
+<p align="center">
+<b>像医生一样诊断论文逻辑问题的 AI Agent</b>
+</p>
+
+<p align="center">
+发现逻辑漏洞 · 分析 Claim-Evidence 关系 · 生成可执行修改方案
+</p>
+
+---
+
+写论文最难的，从来不是语法， 而是 **逻辑**。
 
 - Introduction 是否真正建立了研究 gap？
 - 每个 Claim 是否有足够证据支撑？
