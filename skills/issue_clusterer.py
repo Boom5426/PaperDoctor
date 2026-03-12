@@ -4,6 +4,16 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+ISSUE_ORDER = {
+    "evidence": 0,
+    "scope": 1,
+    "validation": 2,
+    "contribution": 3,
+    "gap": 4,
+    "narrative": 5,
+    "significance": 6,
+}
+
 
 def _cluster_key(item: dict) -> tuple[str, str, str]:
     if item["issue_type"] in {"gap", "narrative", "contribution"}:
@@ -49,7 +59,14 @@ def build_issue_clusters(logic_map: dict) -> dict:
             }
         )
 
-    clusters.sort(key=lambda item: (item["priority"], item["section"], item["cluster_id"]))
+    clusters.sort(
+        key=lambda item: (
+            item["priority"],
+            ISSUE_ORDER.get(item["issue_type"], 99),
+            item["section"],
+            item["cluster_id"],
+        )
+    )
     return {
         "document_name": logic_map["document_name"],
         "item_count": len(clusters),

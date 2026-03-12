@@ -19,6 +19,16 @@ Requirements:
 - example_rewrite should be a short improved version of the source idea, not a full paragraph.
 """.strip()
 
+ISSUE_ORDER = {
+    "evidence": 0,
+    "scope": 1,
+    "validation": 2,
+    "contribution": 3,
+    "gap": 4,
+    "narrative": 5,
+    "significance": 6,
+}
+
 
 def _nature_quality_reason(issue_type: str, journal_profile: dict, nature_quality_rubric: dict) -> str:
     dimensions = nature_quality_rubric["dimensions"]
@@ -178,7 +188,13 @@ def build_revision_plan(
             }
         )
 
-    items.sort(key=lambda item: (item["priority"], item["paragraph_id"]))
+    items.sort(
+        key=lambda item: (
+            item["priority"],
+            ISSUE_ORDER.get(item["issue_type"], 99),
+            item["paragraph_id"],
+        )
+    )
     return {
         "document_name": issue_clusters["document_name"],
         "journal": journal_profile["journal"],

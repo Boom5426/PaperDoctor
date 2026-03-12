@@ -22,6 +22,33 @@ def _normalize_text(text: str | None) -> str:
     return " ".join(lowered.split()[:10])
 
 
+def _token_set(text: str | None) -> set[str]:
+    normalized = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
+    return {token for token in normalized.split() if len(token) > 3}
+
+
+def _build_anchor_context(storyline_confirmed: dict, core_claims_confirmed: dict) -> dict:
+    primary_claims = [item["text"] for item in core_claims_confirmed["items"] if item["label"] == "primary"]
+    secondary_claims = [item["text"] for item in core_claims_confirmed["items"] if item["label"] == "secondary"]
+    return {
+        "problem_tokens": _token_set(storyline_confirmed.get("problem")),
+        "gap_tokens": _token_set(storyline_confirmed.get("gap")),
+        "contribution_tokens": _token_set(storyline_confirmed.get("contribution")),
+        "significance_tokens": _token_set(storyline_confirmed.get("significance")),
+        "primary_claims": primary_claims,
+        "secondary_claims": secondary_claims,
+        "primary_claim_tokens": [_token_set(text) for text in primary_claims],
+        "secondary_claim_tokens": [_token_set(text) for text in secondary_claims],
+    }
+
+
+def _matches_anchor(text: str | None, token_groups: list[set[str]], minimum_overlap: int = 2) -> bool:
+    text_tokens = _token_set(text)
+    if not text_tokens:
+        return False
+    return any(len(text_tokens & token_group) >= minimum_overlap for token_group in token_groups if token_group)
+
+
 def _detect_claim_scope_risk(role: str, claim_text: str | None, has_evidence: bool) -> str:
     if not claim_text:
         return "supported"
@@ -163,6 +190,8 @@ def build_logic_map(
     claims: dict,
     evidence_map: dict,
     nature_quality_rubric: dict,
+    storyline_confirmed: dict,
+    core_claims_confirmed: dict,
     llm_client=None,
 ) -> dict:
     role_by_paragraph = {item["paragraph_id"]: item for item in section_roles["items"]}
@@ -171,6 +200,7 @@ def build_logic_map(
     items: list[dict] = []
     seen_signatures: set[tuple[str, str, str]] = set()
     previous_role: str | None = None
+    anchors = _build_anchor_context(storyline_confirmed, core_claims_confirmed)
 
     for section in paper_raw["sections"]:
         for paragraph in section["paragraphs"]:
@@ -196,6 +226,28 @@ def build_logic_map(
             )
             previous_role = role_item["role"]
             if not issue:
+                continue
+            claim_text = claim_item["claim_text"] or paragraph["text"]
+            anchored = False
+            if issue["issue_type"] == "gap":
+                anchored = _matches_anchor(claim_text, [anchors["gap_tokens"], anchors["problem_tokens"]], minimum_overlap=2)
+            elif issue["issue_type"] in {"contribution", "evidence", "scope"}:
+                anchored = _matches_anchor(
+                    claim_text,
+                    anchors["primary_claim_tokens"] + [anchors["contribution_tokens"]],
+                    minimum_overlap=2,
+                )
+            elif issue["issue_type"] == "validation":
+                anchored = _matches_anchor(
+                    claim_text,
+                    anchors["primary_claim_tokens"] + anchors["secondary_claim_tokens"],
+                    minimum_overlap=2,
+                )
+            elif issue["issue_type"] == "narrative":
+                anchored = role_item["role"] in {"Contribution", "Discussion"} and (
+                    _matches_anchor(claim_text, [anchors["contribution_tokens"], anchors["significance_tokens"]], minimum_overlap=1)
+                )
+            if not anchored:
                 continue
             signature = (issue["issue_type"], issue["section"], issue["theme_key"])
             if signature in seen_signatures:

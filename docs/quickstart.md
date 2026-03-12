@@ -39,7 +39,11 @@ You will now see stage-aware runtime logs such as:
 - Section role annotation
 - Claim extraction
 - Evidence mapping
+- Building storyline draft
+- Building core claims draft
+- HITL alignment checkpoint
 - Building logic map
+- Clustering issues
 - Building storyline
 - Generating revision report
 - Writing outputs
@@ -79,6 +83,10 @@ After the run, PaperDoctor writes:
 - `outputs/section_roles.json`
 - `outputs/claims.json`
 - `outputs/evidence_map.json`
+- `outputs/storyline_draft.json`
+- `outputs/core_claims_draft.json`
+- `outputs/storyline_confirmed.json`
+- `outputs/core_claims_confirmed.json`
 - `outputs/nature_quality_rubric.json`
 - `outputs/logic_map.json`
 - `outputs/issue_clusters.json`
@@ -94,6 +102,8 @@ PaperDoctor now uses an artifact-first workflow:
 - this is especially useful for long papers because later analysis does not need to reread the whole document every time
 - when `--scope` is used, scope-specific outputs are written with a prefix such as `intro_logic_map.json`
 - runtime logs will show whether an artifact was `reuse` or `recompute`
+- in interactive terminal runs, PaperDoctor pauses for a HITL checkpoint before final diagnosis
+- in non-interactive runs, draft anchors are auto-accepted so batch runs do not hang
 
 ## 6. Use Your Own Paper
 

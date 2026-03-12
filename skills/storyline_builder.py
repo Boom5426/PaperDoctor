@@ -39,6 +39,8 @@ def build_storyline(
     section_roles: dict,
     claims: dict,
     issue_clusters: dict | None = None,
+    storyline_confirmed: dict | None = None,
+    core_claims_confirmed: dict | None = None,
 ) -> dict:
     role_by_paragraph = {item["paragraph_id"]: item for item in section_roles["items"]}
     claim_by_paragraph = {item["paragraph_id"]: item for item in claims["items"]}
@@ -87,16 +89,30 @@ def build_storyline(
         else "Main problem not clearly extracted."
     )
     main_gap = gap_candidates[-1] if gap_candidates else "Main gap not clearly extracted."
-    core_contribution = (
-        contribution_candidates[0] if contribution_candidates else "Core contribution not clearly extracted."
-    )
+    if storyline_confirmed:
+        main_problem = storyline_confirmed.get("problem", main_problem)
+        main_gap = storyline_confirmed.get("gap", main_gap)
+        core_contribution = storyline_confirmed.get("contribution", "")
+    else:
+        core_contribution = (
+            contribution_candidates[0] if contribution_candidates else "Core contribution not clearly extracted."
+        )
+
+    if core_claims_confirmed and core_claims_confirmed["items"]:
+        supporting_results = [
+            item["text"]
+            for item in core_claims_confirmed["items"]
+            if item["label"] in {"primary", "secondary"}
+        ][:3]
+    else:
+        supporting_results = result_candidates
 
     return {
         "document_name": paper_raw["document_name"],
         "main_problem": main_problem,
         "main_gap": main_gap,
         "core_contribution": core_contribution,
-        "supporting_results": result_candidates,
+        "supporting_results": supporting_results,
         "main_risks": main_risks,
         "significance_risk": _detect_significance_risk(issue_clusters),
     }

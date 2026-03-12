@@ -12,6 +12,11 @@ from jsonschema import validate
 from paperdoctor.llm import load_llm_client
 from skills.claim_extractor import extract_claims
 from skills.evidence_mapper import map_evidence
+from skills.hitl_alignment import (
+    build_core_claim_candidates,
+    build_storyline_draft,
+    run_hitl_alignment_checkpoint,
+)
 from skills.issue_clusterer import build_issue_clusters
 from skills.journal_adapter import get_journal_profile
 from skills.logic_mapper import build_logic_map
@@ -332,6 +337,95 @@ def run_pipeline(
         f"{evidence_status} | evidence_supported={evidence_supported}/{evidence_map['item_count']} | output={evidence_map_path.name}",
     )
 
+    logger.stage_start("Building storyline draft")
+    storyline_draft, storyline_draft_path, storyline_draft_status = _prepare_artifact(
+        logger,
+        manifest,
+        paper_id=paper_id,
+        source_docx=document_path,
+        doc_hash=doc_hash,
+        name="storyline_draft",
+        scope=scope,
+        extension="json",
+        refresh=refresh,
+        build_fn=lambda: build_storyline_draft(scoped_paper_raw, section_roles, claims, evidence_map),
+    )
+    logger.stage_done(
+        "Building storyline draft",
+        f"{storyline_draft_status} | output={storyline_draft_path.name}",
+    )
+
+    logger.stage_start("Building core claims draft")
+    core_claims_draft, core_claims_draft_path, core_claims_draft_status = _prepare_artifact(
+        logger,
+        manifest,
+        paper_id=paper_id,
+        source_docx=document_path,
+        doc_hash=doc_hash,
+        name="core_claims_draft",
+        scope=scope,
+        extension="json",
+        refresh=refresh,
+        build_fn=lambda: build_core_claim_candidates(scoped_paper_raw, section_roles, claims),
+    )
+    logger.stage_done(
+        "Building core claims draft",
+        f"{core_claims_draft_status} | candidates={core_claims_draft['item_count']} | output={core_claims_draft_path.name}",
+    )
+
+    logger.stage_start("HITL alignment checkpoint")
+    confirmed_cache: dict[str, dict] = {}
+
+    def _run_hitl_once() -> tuple[dict, dict]:
+        if "storyline_confirmed" not in confirmed_cache or "core_claims_confirmed" not in confirmed_cache:
+            storyline_confirmed_value, core_claims_confirmed_value = run_hitl_alignment_checkpoint(
+                storyline_draft,
+                core_claims_draft,
+            )
+            confirmed_cache["storyline_confirmed"] = storyline_confirmed_value
+            confirmed_cache["core_claims_confirmed"] = core_claims_confirmed_value
+        return confirmed_cache["storyline_confirmed"], confirmed_cache["core_claims_confirmed"]
+
+    def _confirm_storyline() -> dict:
+        storyline_confirmed, _ = _run_hitl_once()
+        return storyline_confirmed
+
+    def _confirm_core_claims() -> dict:
+        _, core_claims_confirmed = _run_hitl_once()
+        return core_claims_confirmed
+
+    storyline_confirmed, storyline_confirmed_path, storyline_confirmed_status = _prepare_artifact(
+        logger,
+        manifest,
+        paper_id=paper_id,
+        source_docx=document_path,
+        doc_hash=doc_hash,
+        name="storyline_confirmed",
+        scope=scope,
+        extension="json",
+        refresh=refresh,
+        build_fn=_confirm_storyline,
+    )
+    core_claims_confirmed, core_claims_confirmed_path, core_claims_confirmed_status = _prepare_artifact(
+        logger,
+        manifest,
+        paper_id=paper_id,
+        source_docx=document_path,
+        doc_hash=doc_hash,
+        name="core_claims_confirmed",
+        scope=scope,
+        extension="json",
+        refresh=refresh,
+        build_fn=_confirm_core_claims,
+    )
+    logger.stage_done(
+        "HITL alignment checkpoint",
+        (
+            f"storyline={storyline_confirmed_status} | core_claims={core_claims_confirmed_status} | "
+            f"confirmed_claims={core_claims_confirmed['item_count']} | outputs={storyline_confirmed_path.name},{core_claims_confirmed_path.name}"
+        ),
+    )
+
     logger.stage_start("Loading Nature-quality rubric")
     nature_quality_rubric, nature_quality_rubric_path, rubric_status = _prepare_artifact(
         logger,
@@ -367,6 +461,8 @@ def run_pipeline(
             claims,
             evidence_map,
             nature_quality_rubric,
+            storyline_confirmed,
+            core_claims_confirmed,
             llm_client=llm_client,
         ),
         validate_schema="logic_map_schema.json",
@@ -407,7 +503,14 @@ def run_pipeline(
         scope=scope,
         extension="json",
         refresh=refresh,
-        build_fn=lambda: build_storyline(scoped_paper_raw, section_roles, claims, issue_clusters),
+        build_fn=lambda: build_storyline(
+            scoped_paper_raw,
+            section_roles,
+            claims,
+            issue_clusters,
+            storyline_confirmed,
+            core_claims_confirmed,
+        ),
     )
     logger.stage_done(
         "Building storyline",
@@ -480,6 +583,10 @@ def run_pipeline(
         ("section_roles", section_roles_status, section_roles_path.name),
         ("claims", claims_status, claims_path.name),
         ("evidence_map", evidence_status, evidence_map_path.name),
+        ("storyline_draft", storyline_draft_status, storyline_draft_path.name),
+        ("core_claims_draft", core_claims_draft_status, core_claims_draft_path.name),
+        ("storyline_confirmed", storyline_confirmed_status, storyline_confirmed_path.name),
+        ("core_claims_confirmed", core_claims_confirmed_status, core_claims_confirmed_path.name),
         ("nature_quality_rubric", rubric_status, nature_quality_rubric_path.name),
         ("logic_map", logic_map_status, logic_map_path.name),
         ("issue_clusters", issue_clusters_status, issue_clusters_path.name),
@@ -504,6 +611,10 @@ def run_pipeline(
         "section_roles_path": str(section_roles_path),
         "claims_path": str(claims_path),
         "evidence_map_path": str(evidence_map_path),
+        "storyline_draft_path": str(storyline_draft_path),
+        "core_claims_draft_path": str(core_claims_draft_path),
+        "storyline_confirmed_path": str(storyline_confirmed_path),
+        "core_claims_confirmed_path": str(core_claims_confirmed_path),
         "nature_quality_rubric_path": str(nature_quality_rubric_path),
         "logic_map_path": str(logic_map_path),
         "issue_clusters_path": str(issue_clusters_path),
