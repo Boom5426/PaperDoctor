@@ -13,6 +13,7 @@ ISSUE_ORDER = {
     "narrative": 5,
     "significance": 6,
 }
+MAX_ISSUE_CLUSTERS = 10
 
 
 def _cluster_key(item: dict) -> tuple[str, str, str]:
@@ -67,6 +68,7 @@ def build_issue_clusters(logic_map: dict) -> dict:
             item["cluster_id"],
         )
     )
+    clusters = clusters[:MAX_ISSUE_CLUSTERS]
     return {
         "document_name": logic_map["document_name"],
         "item_count": len(clusters),

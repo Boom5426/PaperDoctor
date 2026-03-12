@@ -175,12 +175,18 @@ python run_agent.py examples/sample_paper.docx
 python run_agent.py examples/sample_paper.docx --journal "Nature Methods"
 ```
 
-如果在交互式终端运行，程序不会要求你手改 JSON。它会直接在终端打印结构化内容并暂停确认：
+如果在交互式终端运行，程序不会要求你手改 JSON。它会直接在终端打印结构化内容，并尽量把确认压缩到 2-3 分钟内完成：
 
 - 先确认 `storyline_draft`
 - 再把 `core_claim_candidates` 标记为 `primary / secondary / remove`
 - 可选添加缺失 claim
 - 然后对 `issue_clusters` 标记 `fix / reframe / defer`
+
+默认交互是“少输入”模式：
+
+- `storyline` 支持一行 `key=value` 覆盖
+- `claims` 支持一行 `1:p,2:s,3:r`
+- `issue strategy` 支持一行 `2:r,5:d`
 
 如果当前运行环境不是交互式终端，系统会自动将 draft 保存为 confirmed anchors，避免批处理任务卡住。
 

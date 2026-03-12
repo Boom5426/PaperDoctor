@@ -28,6 +28,7 @@ ISSUE_ORDER = {
     "narrative": 5,
     "significance": 6,
 }
+MAX_REVISION_ITEMS = 10
 
 
 def _nature_quality_reason(issue_type: str, journal_profile: dict, nature_quality_rubric: dict) -> str:
@@ -203,6 +204,7 @@ def build_revision_plan(
             item["paragraph_id"],
         )
     )
+    items = items[:MAX_REVISION_ITEMS]
     return {
         "document_name": issue_clusters["document_name"],
         "journal": journal_profile["journal"],

@@ -105,6 +105,7 @@ PaperDoctor now uses an artifact-first workflow:
 - when `--scope` is used, scope-specific outputs are written with a prefix such as `intro_logic_map.json`
 - runtime logs will show whether an artifact was `reuse` or `recompute`
 - in interactive terminal runs, PaperDoctor pauses for terminal-based confirmation instead of asking you to edit JSON files
+- the checkpoint is optimized for fast review: one line for storyline edits, one line for claim labels, one line for strategy overrides
 - after issue clustering, PaperDoctor also asks whether each cluster should be `fix`, `reframe`, or `defer`
 - in non-interactive runs, draft anchors are auto-accepted so batch runs do not hang
 

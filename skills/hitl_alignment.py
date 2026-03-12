@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import sys
 
+MAX_CORE_CLAIMS = 5
+MAX_ISSUE_CLUSTERS_FOR_HITL = 10
+
 
 def _normalize(text: str | None) -> str:
     return " ".join((text or "").strip().split())
@@ -58,7 +61,7 @@ def build_core_claim_candidates(
     paper_raw: dict,
     section_roles: dict,
     claims: dict,
-    max_claims: int = 7,
+    max_claims: int = MAX_CORE_CLAIMS,
 ) -> dict:
     role_by_paragraph = {item["paragraph_id"]: item for item in section_roles["items"]}
 
@@ -103,26 +106,41 @@ def build_core_claim_candidates(
 
 def _interactive_confirm_storyline(storyline_draft: dict) -> dict:
     print("\n[PaperDoctor] HITL checkpoint: storyline draft")
+    print("[PaperDoctor] Step 1/3. Press Enter to accept all, or edit selected fields with key=value.")
+    print("[PaperDoctor] Example: gap=Existing methods do not isolate causal effects.; contribution=We introduce VC2O.")
     for key in ["problem", "gap", "contribution", "significance"]:
         print(f"  {key}: {storyline_draft[key]}")
     print(f"  evidence_path: {storyline_draft['evidence_path']}")
-    accept = input("[PaperDoctor] Accept storyline draft? [Y/n]: ").strip().lower()
-    if accept in {"", "y", "yes"}:
+    raw = input("[PaperDoctor] Storyline edits: ").strip()
+    if not raw:
         return storyline_draft
 
     confirmed = dict(storyline_draft)
-    for key in ["problem", "gap", "contribution", "significance"]:
-        edited = input(f"[PaperDoctor] Edit {key} (Enter to keep current): ").strip()
-        if edited:
-            confirmed[key] = edited
-    evidence_path = input("[PaperDoctor] Edit evidence_path as ';' separated claims (Enter to keep): ").strip()
-    if evidence_path:
-        confirmed["evidence_path"] = [part.strip() for part in evidence_path.split(";") if part.strip()]
+    key_map = {
+        "problem": "problem",
+        "gap": "gap",
+        "contribution": "contribution",
+        "significance": "significance",
+        "evidence_path": "evidence_path",
+    }
+    for part in raw.split(";"):
+        if "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        key = key.strip().lower()
+        value = value.strip()
+        if not value or key not in key_map:
+            continue
+        if key == "evidence_path":
+            confirmed["evidence_path"] = [item.strip() for item in value.split("|") if item.strip()]
+        else:
+            confirmed[key_map[key]] = value
     return confirmed
 
 
 def _interactive_confirm_claims(core_claims_draft: dict) -> dict:
     print("\n[PaperDoctor] HITL checkpoint: core claim candidates")
+    print("[PaperDoctor] Step 2/3. Keep only the claims that should anchor diagnosis.")
     for index, item in enumerate(core_claims_draft["items"], start=1):
         print(f"  {index}. [{item['default_label']}] {item['section']} | {item['role']} | {item['text']}")
     print("[PaperDoctor] Mark claims with p=primary, s=secondary, r=remove. Example: 1:p,2:s,3:r")
@@ -155,7 +173,7 @@ def _interactive_confirm_claims(core_claims_draft: dict) -> dict:
             }
         )
 
-    missing = input("[PaperDoctor] Add missing claim (optional, Enter to skip): ").strip()
+    missing = input("[PaperDoctor] Add one missing anchor claim if needed (Enter to skip): ").strip()
     if missing:
         items.append(
             {
@@ -167,6 +185,10 @@ def _interactive_confirm_claims(core_claims_draft: dict) -> dict:
                 "label": "primary",
             }
         )
+
+    primary_count = sum(1 for item in items if item["label"] == "primary")
+    if primary_count == 0 and items:
+        items[0]["label"] = "primary"
 
     return {
         "document_name": core_claims_draft["document_name"],
@@ -205,16 +227,40 @@ def run_hitl_alignment_checkpoint(
 
 def _interactive_confirm_issue_strategy(issue_clusters: dict) -> dict:
     print("\n[PaperDoctor] HITL checkpoint: issue strategy")
-    print("[PaperDoctor] Mark each cluster as f=fix, r=reframe, d=defer. Press Enter to keep the default.")
+    print("[PaperDoctor] Step 3/3. Mark only the exceptions. Defaults already prioritize high-leverage issues.")
+    print("[PaperDoctor] Use f=fix, r=reframe, d=defer. Example: 2:r,5:d")
     items: list[dict] = []
-    for index, item in enumerate(issue_clusters["items"], start=1):
+    visible_items = issue_clusters["items"][:MAX_ISSUE_CLUSTERS_FOR_HITL]
+    for index, item in enumerate(visible_items, start=1):
         default_action = "fix" if item["priority"] <= 2 else "reframe"
         print(
             f"  {index}. [{default_action}] {item['issue_type']} | {item['section']} | {item['problem']}"
         )
-        raw = input(f"[PaperDoctor] Action for cluster {index} [f/r/d, default={default_action}]: ").strip().lower()
-        action = {"f": "fix", "r": "reframe", "d": "defer"}.get(raw, default_action)
-        rationale = input("[PaperDoctor] Optional note (Enter to skip): ").strip()
+    raw = input("[PaperDoctor] Strategy overrides: ").strip().lower()
+    label_map = {}
+    if raw:
+        for part in raw.split(","):
+            if ":" not in part:
+                continue
+            index_text, label_text = part.split(":", 1)
+            try:
+                label_map[int(index_text.strip())] = label_text.strip().lower()
+            except ValueError:
+                continue
+    notes = input("[PaperDoctor] Optional notes for changed items, e.g. 2=no extra experiments (Enter to skip): ").strip()
+    note_map = {}
+    if notes:
+        for part in notes.split(","):
+            if ":" not in part:
+                continue
+            index_text, note_text = part.split(":", 1)
+            try:
+                note_map[int(index_text.strip())] = note_text.strip()
+            except ValueError:
+                continue
+    for index, item in enumerate(visible_items, start=1):
+        default_action = "fix" if item["priority"] <= 2 else "reframe"
+        action = {"f": "fix", "r": "reframe", "d": "defer"}.get(label_map.get(index, ""), default_action)
         items.append(
             {
                 "cluster_id": item["cluster_id"],
@@ -222,7 +268,7 @@ def _interactive_confirm_issue_strategy(issue_clusters: dict) -> dict:
                 "section": item["section"],
                 "problem": item["problem"],
                 "action": action,
-                "rationale": rationale,
+                "rationale": note_map.get(index, ""),
             }
         )
     return {
@@ -235,7 +281,7 @@ def _interactive_confirm_issue_strategy(issue_clusters: dict) -> dict:
 def run_issue_strategy_checkpoint(issue_clusters: dict) -> dict:
     if not sys.stdin.isatty():
         items = []
-        for item in issue_clusters["items"]:
+        for item in issue_clusters["items"][:MAX_ISSUE_CLUSTERS_FOR_HITL]:
             default_action = "fix" if item["priority"] <= 2 else "reframe"
             items.append(
                 {
