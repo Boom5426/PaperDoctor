@@ -294,10 +294,14 @@ def run_pipeline(
         extension="json",
         refresh=refresh,
         build_fn=lambda: annotate_section_roles(scoped_paper_raw, llm_client=llm_client),
+        validate_schema="section_roles_schema.json",
     )
     logger.stage_done(
         "Section role annotation",
-        f"{section_roles_status} | paragraphs={section_roles['item_count']} | output={section_roles_path.name}",
+        (
+            f"{section_roles_status} | paragraphs={section_roles['item_count']} | "
+            f"high_confidence={sum(1 for item in section_roles['items'] if item['confidence'] >= 0.7)} | output={section_roles_path.name}"
+        ),
     )
 
     logger.stage_start("Claim extraction")
@@ -319,25 +323,6 @@ def run_pipeline(
         f"{claims_status} | extracted_claims={extracted_claims}/{claims['item_count']} | output={claims_path.name}",
     )
 
-    logger.stage_start("Evidence mapping")
-    evidence_map, evidence_map_path, evidence_status = _prepare_artifact(
-        logger,
-        manifest,
-        paper_id=paper_id,
-        source_docx=document_path,
-        doc_hash=doc_hash,
-        name="evidence_map",
-        scope=scope,
-        extension="json",
-        refresh=refresh,
-        build_fn=lambda: map_evidence(scoped_paper_raw, claims, llm_client=llm_client),
-    )
-    evidence_supported = sum(1 for item in evidence_map["items"] if item["has_evidence"])
-    logger.stage_done(
-        "Evidence mapping",
-        f"{evidence_status} | evidence_supported={evidence_supported}/{evidence_map['item_count']} | output={evidence_map_path.name}",
-    )
-
     logger.stage_start("Building storyline draft")
     storyline_draft, storyline_draft_path, storyline_draft_status = _prepare_artifact(
         logger,
@@ -349,7 +334,7 @@ def run_pipeline(
         scope=scope,
         extension="json",
         refresh=refresh,
-        build_fn=lambda: build_storyline_draft(scoped_paper_raw, section_roles, claims, evidence_map),
+        build_fn=lambda: build_storyline_draft(scoped_paper_raw, section_roles, claims),
     )
     logger.stage_done(
         "Building storyline draft",
@@ -424,6 +409,29 @@ def run_pipeline(
         (
             f"storyline={storyline_confirmed_status} | core_claims={core_claims_confirmed_status} | "
             f"confirmed_claims={core_claims_confirmed['item_count']} | outputs={storyline_confirmed_path.name},{core_claims_confirmed_path.name}"
+        ),
+    )
+
+    logger.stage_start("Evidence mapping")
+    evidence_map, evidence_map_path, evidence_status = _prepare_artifact(
+        logger,
+        manifest,
+        paper_id=paper_id,
+        source_docx=document_path,
+        doc_hash=doc_hash,
+        name="evidence_map",
+        scope=scope,
+        extension="json",
+        refresh=refresh,
+        build_fn=lambda: map_evidence(scoped_paper_raw, core_claims_confirmed, llm_client=llm_client),
+        validate_schema="evidence_map_schema.json",
+    )
+    evidence_supported = sum(1 for item in evidence_map["items"] if item["support_level"] in {"strong", "partial"})
+    logger.stage_done(
+        "Evidence mapping",
+        (
+            f"{evidence_status} | claims_supported={evidence_supported}/{evidence_map['item_count']} | "
+            f"output={evidence_map_path.name}"
         ),
     )
 

@@ -75,7 +75,7 @@ def _build_fix(
         if significance_risk == "significance_not_grounded":
             return "Tie the discussion claim to the strongest reported result, then state the broader capability or field consequence that follows from that evidence."
         return "Add one or two sentences that translate the result into broader methodological, user-facing, or field-level significance."
-    if role == "Discussion":
+    if role in {"interpretation", "significance", "limitation"}:
         return "Tie the discussion back to the strongest preceding evidence and state the implication explicitly."
     if evidence_items:
         return "Tighten the paragraph so the claim and supporting evidence appear in the same local context."

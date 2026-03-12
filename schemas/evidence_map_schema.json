@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperDoctor Evidence Map",
+  "type": "object",
+  "required": ["document_name", "supported_evidence_types", "item_count", "items"],
+  "properties": {
+    "document_name": { "type": "string" },
+    "supported_evidence_types": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "item_count": { "type": "integer", "minimum": 0 },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "claim_id",
+          "claim_text",
+          "label",
+          "section",
+          "evidence_spans",
+          "evidence_type",
+          "support_level",
+          "missing_expected_evidence",
+          "rationale"
+        ],
+        "properties": {
+          "claim_id": { "type": "string" },
+          "claim_text": { "type": "string" },
+          "label": { "type": "string", "enum": ["primary", "secondary"] },
+          "section": { "type": "string" },
+          "evidence_spans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["paragraph_id", "section", "span_text", "anchor_text"],
+              "properties": {
+                "paragraph_id": { "type": "string" },
+                "section": { "type": "string" },
+                "span_text": { "type": "string" },
+                "anchor_text": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "evidence_type": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["figure_table", "explicit_result", "citation", "method_detail"] }
+          },
+          "support_level": {
+            "type": "string",
+            "enum": ["strong", "partial", "weak", "unsupported"]
+          },
+          "missing_expected_evidence": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "rationale": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

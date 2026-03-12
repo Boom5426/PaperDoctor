@@ -65,7 +65,7 @@
           },
           "evidence": {
             "type": "object",
-            "required": ["has_evidence", "items"],
+            "required": ["has_evidence", "items", "support_level", "missing_expected_evidence", "rationale"],
             "properties": {
               "has_evidence": {
                 "type": "boolean"
@@ -85,6 +85,17 @@
                   },
                   "additionalProperties": false
                 }
+              },
+              "support_level": {
+                "type": "string",
+                "enum": ["strong", "partial", "weak", "unsupported"]
+              },
+              "missing_expected_evidence": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "rationale": {
+                "type": "string"
               }
             },
             "additionalProperties": false
