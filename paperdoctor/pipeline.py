@@ -15,6 +15,7 @@ from skills.evidence_mapper import map_evidence
 from skills.hitl_alignment import (
     build_core_claim_candidates,
     build_storyline_draft,
+    run_issue_strategy_checkpoint,
     run_hitl_alignment_checkpoint,
 )
 from skills.issue_clusterer import build_issue_clusters
@@ -492,6 +493,29 @@ def run_pipeline(
         f"{issue_clusters_status} | clusters={issue_clusters['item_count']} | output={issue_clusters_path.name}",
     )
 
+    logger.stage_start("Issue strategy checkpoint")
+    issue_strategy, issue_strategy_path, issue_strategy_status = _prepare_artifact(
+        logger,
+        manifest,
+        paper_id=paper_id,
+        source_docx=document_path,
+        doc_hash=doc_hash,
+        name="issue_strategy",
+        scope=scope,
+        extension="json",
+        refresh=refresh,
+        build_fn=lambda: run_issue_strategy_checkpoint(issue_clusters),
+        validate_schema="issue_strategy_schema.json",
+    )
+    actionable_clusters = sum(1 for item in issue_strategy["items"] if item["action"] in {"fix", "reframe"})
+    logger.stage_done(
+        "Issue strategy checkpoint",
+        (
+            f"{issue_strategy_status} | actionable_clusters={actionable_clusters}/{issue_strategy['item_count']} | "
+            f"output={issue_strategy_path.name}"
+        ),
+    )
+
     logger.stage_start("Building storyline")
     storyline, storyline_path, storyline_status = _prepare_artifact(
         logger,
@@ -504,12 +528,9 @@ def run_pipeline(
         extension="json",
         refresh=refresh,
         build_fn=lambda: build_storyline(
-            scoped_paper_raw,
-            section_roles,
-            claims,
-            issue_clusters,
             storyline_confirmed,
             core_claims_confirmed,
+            issue_clusters,
         ),
     )
     logger.stage_done(
@@ -549,6 +570,7 @@ def run_pipeline(
         refresh=refresh,
         build_fn=lambda: build_revision_plan(
             issue_clusters,
+            issue_strategy,
             journal_profile,
             nature_quality_rubric,
             storyline,
@@ -590,6 +612,7 @@ def run_pipeline(
         ("nature_quality_rubric", rubric_status, nature_quality_rubric_path.name),
         ("logic_map", logic_map_status, logic_map_path.name),
         ("issue_clusters", issue_clusters_status, issue_clusters_path.name),
+        ("issue_strategy", issue_strategy_status, issue_strategy_path.name),
         ("storyline", storyline_status, storyline_path.name),
         ("journal_profile", journal_profile_status, journal_profile_path.name),
         ("revision_plan", revision_plan_status, revision_plan_path.name),
@@ -618,6 +641,7 @@ def run_pipeline(
         "nature_quality_rubric_path": str(nature_quality_rubric_path),
         "logic_map_path": str(logic_map_path),
         "issue_clusters_path": str(issue_clusters_path),
+        "issue_strategy_path": str(issue_strategy_path),
         "storyline_path": str(storyline_path),
         "journal_profile_path": str(journal_profile_path),
         "revision_report_path": str(revision_report_path),

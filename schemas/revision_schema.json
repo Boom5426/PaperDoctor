@@ -22,7 +22,9 @@
         "core_contribution",
         "supporting_results",
         "main_risks",
-        "significance_risk"
+        "significance_risk",
+        "significance",
+        "evidence_path"
       ],
       "properties": {
         "document_name": {"type": "string"},
@@ -48,6 +50,13 @@
         },
         "significance_risk": {
           "type": "string"
+        },
+        "significance": {
+          "type": "string"
+        },
+        "evidence_path": {
+          "type": "array",
+          "items": {"type": "string"}
         }
       },
       "additionalProperties": false
@@ -76,7 +85,9 @@
           "section",
           "claim_scope_risk",
           "narrative_link_issue",
-          "significance_risk"
+          "significance_risk",
+          "recommended_action",
+          "author_rationale"
         ],
         "properties": {
           "cluster_id": {
@@ -143,6 +154,13 @@
             "type": "string"
           },
           "significance_risk": {
+            "type": "string"
+          },
+          "recommended_action": {
+            "type": "string",
+            "enum": ["fix", "reframe"]
+          },
+          "author_rationale": {
             "type": "string"
           }
         },

@@ -201,3 +201,56 @@ def run_hitl_alignment_checkpoint(
     storyline_confirmed = _interactive_confirm_storyline(storyline_draft)
     core_claims_confirmed = _interactive_confirm_claims(core_claims_draft)
     return storyline_confirmed, core_claims_confirmed
+
+
+def _interactive_confirm_issue_strategy(issue_clusters: dict) -> dict:
+    print("\n[PaperDoctor] HITL checkpoint: issue strategy")
+    print("[PaperDoctor] Mark each cluster as f=fix, r=reframe, d=defer. Press Enter to keep the default.")
+    items: list[dict] = []
+    for index, item in enumerate(issue_clusters["items"], start=1):
+        default_action = "fix" if item["priority"] <= 2 else "reframe"
+        print(
+            f"  {index}. [{default_action}] {item['issue_type']} | {item['section']} | {item['problem']}"
+        )
+        raw = input(f"[PaperDoctor] Action for cluster {index} [f/r/d, default={default_action}]: ").strip().lower()
+        action = {"f": "fix", "r": "reframe", "d": "defer"}.get(raw, default_action)
+        rationale = input("[PaperDoctor] Optional note (Enter to skip): ").strip()
+        items.append(
+            {
+                "cluster_id": item["cluster_id"],
+                "issue_type": item["issue_type"],
+                "section": item["section"],
+                "problem": item["problem"],
+                "action": action,
+                "rationale": rationale,
+            }
+        )
+    return {
+        "document_name": issue_clusters["document_name"],
+        "item_count": len(items),
+        "items": items,
+    }
+
+
+def run_issue_strategy_checkpoint(issue_clusters: dict) -> dict:
+    if not sys.stdin.isatty():
+        items = []
+        for item in issue_clusters["items"]:
+            default_action = "fix" if item["priority"] <= 2 else "reframe"
+            items.append(
+                {
+                    "cluster_id": item["cluster_id"],
+                    "issue_type": item["issue_type"],
+                    "section": item["section"],
+                    "problem": item["problem"],
+                    "action": default_action,
+                    "rationale": "",
+                }
+            )
+        return {
+            "document_name": issue_clusters["document_name"],
+            "item_count": len(items),
+            "items": items,
+        }
+
+    return _interactive_confirm_issue_strategy(issue_clusters)

@@ -56,6 +56,7 @@ def main() -> None:
     print(f"nature_quality_rubric.json: {result['nature_quality_rubric_path']}")
     print(f"logic_map.json: {result['logic_map_path']}")
     print(f"issue_clusters.json: {result['issue_clusters_path']}")
+    print(f"issue_strategy.json: {result['issue_strategy_path']}")
     print(f"storyline.json: {result['storyline_path']}")
     print(f"journal_profile.json: {result['journal_profile_path']}")
     print(f"revision_report.md: {result['revision_report_path']}")

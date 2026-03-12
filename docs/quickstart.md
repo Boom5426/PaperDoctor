@@ -44,6 +44,7 @@ You will now see stage-aware runtime logs such as:
 - HITL alignment checkpoint
 - Building logic map
 - Clustering issues
+- Issue strategy checkpoint
 - Building storyline
 - Generating revision report
 - Writing outputs
@@ -90,6 +91,7 @@ After the run, PaperDoctor writes:
 - `outputs/nature_quality_rubric.json`
 - `outputs/logic_map.json`
 - `outputs/issue_clusters.json`
+- `outputs/issue_strategy.json`
 - `outputs/storyline.json`
 - `outputs/journal_profile.json`
 - `outputs/revision_report.md`
@@ -102,7 +104,8 @@ PaperDoctor now uses an artifact-first workflow:
 - this is especially useful for long papers because later analysis does not need to reread the whole document every time
 - when `--scope` is used, scope-specific outputs are written with a prefix such as `intro_logic_map.json`
 - runtime logs will show whether an artifact was `reuse` or `recompute`
-- in interactive terminal runs, PaperDoctor pauses for a HITL checkpoint before final diagnosis
+- in interactive terminal runs, PaperDoctor pauses for terminal-based confirmation instead of asking you to edit JSON files
+- after issue clustering, PaperDoctor also asks whether each cluster should be `fix`, `reframe`, or `defer`
 - in non-interactive runs, draft anchors are auto-accepted so batch runs do not hang
 
 ## 6. Use Your Own Paper

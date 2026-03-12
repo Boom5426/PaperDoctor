@@ -128,14 +128,20 @@ def _enrich_revision_item(
 
 def build_revision_plan(
     issue_clusters: dict,
+    issue_strategy: dict,
     journal_profile: dict,
     nature_quality_rubric: dict,
     storyline: dict,
     llm_client=None,
 ) -> dict:
     items: list[dict] = []
+    strategy_by_cluster = {item["cluster_id"]: item for item in issue_strategy["items"]}
 
     for entry in issue_clusters["items"]:
+        strategy = strategy_by_cluster.get(entry["cluster_id"], {})
+        action = strategy.get("action", "fix")
+        if action == "defer":
+            continue
         evidence_values = entry["evidence_summary"]
         fallback_fix = _build_fix(
             entry["issue_type"],
@@ -185,6 +191,8 @@ def build_revision_plan(
                 "claim_scope_risk": "clustered_issue",
                 "narrative_link_issue": "clustered_issue",
                 "significance_risk": "clustered_issue",
+                "recommended_action": action,
+                "author_rationale": strategy.get("rationale", ""),
             }
         )
 
@@ -252,6 +260,8 @@ def render_revision_report(revision_plan: dict, journal_profile: dict) -> str:
         "",
         f"Core contribution: {revision_plan['storyline']['core_contribution']}",
         "",
+        f"Significance: {revision_plan['storyline']['significance']}",
+        "",
         "Supporting results: "
         + (", ".join(revision_plan["storyline"]["supporting_results"]) if revision_plan["storyline"]["supporting_results"] else "Not clearly extracted."),
         "",
@@ -280,6 +290,8 @@ def render_revision_report(revision_plan: dict, journal_profile: dict) -> str:
                 "",
                 f"**How to fix**: {item['how_to_fix']}",
                 "",
+                f"**Recommended action**: {item['recommended_action']}",
+                "",
                 f"**Claim status**: {item['claim_status']}",
                 "",
                 f"**Claim scope risk**: {item['claim_scope_risk']}",
@@ -289,6 +301,8 @@ def render_revision_report(revision_plan: dict, journal_profile: dict) -> str:
                 f"**Significance risk**: {item['significance_risk']}",
                 "",
                 f"**Evidence summary**: {', '.join(item['evidence_summary']) if item['evidence_summary'] else 'None'}",
+                "",
+                f"**Author rationale**: {item['author_rationale'] or 'None'}",
                 "",
                 f"**Example rewrite**: {item['example_rewrite']}",
                 "",
