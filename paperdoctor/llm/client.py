@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:  # pragma: no cover - optional dependency fallback
+    OpenAI = None
 
 
 DEFAULT_BASE_URL = "https://vip.yi-zhan.top/v1"
@@ -52,7 +55,7 @@ class LLMClient:
                 base_url=config.base_url,
                 timeout=config.timeout,
             )
-            if config.is_configured
+            if config.is_configured and OpenAI is not None
             else None
         )
 
@@ -81,4 +84,3 @@ class LLMClient:
 
 def load_llm_client() -> LLMClient:
     return LLMClient(LLMConfig.from_env())
-

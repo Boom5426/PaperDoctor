@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaperDoctor Claims",
+  "type": "object",
+  "required": ["document_name", "item_count", "items"],
+  "properties": {
+    "document_name": { "type": "string" },
+    "item_count": { "type": "integer", "minimum": 0 },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "paragraph_id",
+          "section",
+          "has_claim",
+          "claim_text",
+          "status",
+          "confidence",
+          "rationale",
+          "source_text"
+        ],
+        "properties": {
+          "paragraph_id": { "type": "string" },
+          "section": { "type": "string" },
+          "has_claim": { "type": "boolean" },
+          "claim_text": { "type": ["string", "null"] },
+          "status": {
+            "type": "string",
+            "enum": [
+              "explicit_marker",
+              "inferred_claim",
+              "descriptive_paragraph",
+              "no_explicit_claim",
+              "empty_paragraph"
+            ]
+          },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "rationale": { "type": "string" },
+          "source_text": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

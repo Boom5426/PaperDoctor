@@ -315,12 +315,16 @@ def run_pipeline(
         scope=scope,
         extension="json",
         refresh=refresh,
-        build_fn=lambda: extract_claims(scoped_paper_raw, llm_client=llm_client),
+        build_fn=lambda: extract_claims(scoped_paper_raw, section_roles, llm_client=llm_client),
+        validate_schema="claims_schema.json",
     )
     extracted_claims = sum(1 for item in claims["items"] if item["has_claim"])
     logger.stage_done(
         "Claim extraction",
-        f"{claims_status} | extracted_claims={extracted_claims}/{claims['item_count']} | output={claims_path.name}",
+        (
+            f"{claims_status} | extracted_claims={extracted_claims}/{claims['item_count']} | "
+            f"high_confidence={sum(1 for item in claims['items'] if item['has_claim'] and item['confidence'] >= 0.7)} | output={claims_path.name}"
+        ),
     )
 
     logger.stage_start("Building storyline draft")
