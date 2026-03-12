@@ -74,7 +74,7 @@ Fix:
 
 Note:
 - the current pipeline can still run in heuristic mode, but API-backed extensions will not be available
-- the current project already supports LLM-enhanced revision planning when `.env` is configured
+- the current project already supports LLM-enhanced claim extraction and revision planning when `.env` is configured
 
 ### `base_url` cannot connect
 
